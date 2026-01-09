@@ -160,4 +160,38 @@ function nextQuestion(){
   document.getElementById("answerMeaning").innerText="";
 }
 
-// ======
+// ================== 回答 ==================
+function markKnow(){
+  let item=currentList[order[index]];
+  document.getElementById("answerMeaning").innerText=item.meaning;
+  setTimeout(()=>{
+    index++;
+    nextQuestion();
+  },800);
+}
+
+function markDontKnow(){
+  dontKnow.push(order[index]);
+  let item=currentList[order[index]];
+  document.getElementById("answerMeaning").innerText=item.meaning;
+  setTimeout(()=>{
+    index++;
+    nextQuestion();
+  },1200);
+}
+
+// ================== 音声 ==================
+function speakText(){
+  let text=document.getElementById("questionWord").innerText;
+  let u=new SpeechSynthesisUtterance(text);
+  u.lang="en-US";
+  speechSynthesis.speak(u);
+}
+
+// 初期表示
+loadLists();
+
+</script>
+</body>
+</html>
+

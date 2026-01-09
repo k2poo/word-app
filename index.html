@@ -113,7 +113,10 @@ function startStudy(i){
 }
 
 function resetOrder(){
-  order=[...currentList.keys()];
+  order=[];
+  for(let i=0;i<currentList.length;i++){
+    order.push(i);
+  }
   order.sort(()=>Math.random()-0.5);
   index=0;
 }
@@ -194,4 +197,3 @@ loadLists();
 </script>
 </body>
 </html>
-

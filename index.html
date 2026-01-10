@@ -10,8 +10,11 @@ body{
   background:#fff5fb;
   padding:15px;
 }
+
 h2{ color:#ff7eb8; }
+
 .screen{ display:none; }
+
 .card{
   background:white;
   padding:15px;
@@ -19,20 +22,30 @@ h2{ color:#ff7eb8; }
   box-shadow:0 4px 10px rgba(0,0,0,0.08);
   margin-bottom:15px;
 }
+
 button{
   padding:10px 14px;
   border-radius:20px;
   border:none;
   font-size:14px;
+  margin:5px;
 }
+
 .btn-pink{ background:#ff9bcd; }
 .btn-green{ background:#9be1a7; }
 .btn-blue{ background:#9bd8ff; }
 .btn-gray{ background:#dddddd; }
+
 .big{
   font-size:30px;
   margin:12px 0;
   cursor:pointer;
+}
+
+#wordImage{
+  max-width:200px;
+  display:none;
+  margin:10px 0;
 }
 </style>
 </head>
@@ -41,16 +54,20 @@ button{
 
 <h2>🌸 英単語暗記アプリ by Koji NIHEI 2026 🌸</h2>
 
-<!-- リスト選択 -->
+<!-- ================= リスト選択画面 ================= -->
 <div id="listScreen" class="screen card">
   <h3>📚 リストを選んでね</h3>
   <div id="listContainer"></div>
 </div>
 
-<!-- 学習画面 -->
+<!-- ================= 学習画面 ================= -->
 <div id="studyScreen" class="screen card">
   <h3 id="studyTitle"></h3>
+
   <div class="big" id="questionWord" onclick="speakText()"></div>
+
+  <img id="wordImage">
+
   <div class="big" id="answerMeaning" style="color:#0077ff;"></div>
 
   <button class="btn-green" onclick="markKnow()">分かる</button>
@@ -59,26 +76,21 @@ button{
 
 <script>
 
-// ================== データ ==================
+// ================== リスト情報（CSVファイル名） ==================
 const lists = [
-  {
-    title:"サンプル",
-    items:[
-      {word:"apple", meaning:"りんご"},
-      {word:"dog", meaning:"犬"},
-      {word:"cat", meaning:"猫"}
-    ]
-  }
+  { title:"動物", file:"animals.csv" },
+  { title:"果物", file:"fruits.csv" }
 ];
 
-let currentList=[];
-let title="";
-let order=[];
-let index=0;
+// ================== 学習用変数 ==================
+let currentList = [];
+let title = "";
+let order = [];
+let index = 0;
 
-let dontKnow=[];
-let round=1;
-let fullRoundCount=0; // ★ 全問終了回数
+let dontKnow = [];
+let round = 1;
+let fullRoundCount = 0;
 
 // ================== 画面切替 ==================
 function show(id){
@@ -86,87 +98,121 @@ function show(id){
   document.getElementById(id).style.display="block";
 }
 
+// ================== CSV読み込み ==================
+async function loadCSV(fileName){
+  const res = await fetch("lists/" + fileName);
+  const text = await res.text();
+
+  const lines = text.trim().split("\n");
+  const headers = lines[0].split(",");
+
+  const items = [];
+
+  for(let i=1;i<lines.length;i++){
+    const values = lines[i].split(",");
+    let obj = {};
+    headers.forEach((h,idx)=>{
+      obj[h.trim()] = values[idx].trim();
+    });
+    items.push(obj);
+  }
+
+  return items;
+}
+
 // ================== リスト表示 ==================
 function loadLists(){
-  let c=document.getElementById("listContainer");
-  c.innerHTML="";
+  const c = document.getElementById("listContainer");
+  c.innerHTML = "";
+
   lists.forEach((l,i)=>{
-    let btn=document.createElement("button");
-    btn.className="btn-blue";
-    btn.innerText=l.title;
-    btn.onclick=()=>startStudy(i);
+    const btn = document.createElement("button");
+    btn.className = "btn-blue";
+    btn.innerText = l.title;
+    btn.onclick = ()=>startStudy(i);
     c.appendChild(btn);
   });
+
   show("listScreen");
 }
 
 // ================== 学習開始 ==================
-function startStudy(i){
-  currentList=[...lists[i].items];
-  title=lists[i].title;
-  round=1;
-  fullRoundCount=0;
-  dontKnow=[];
+async function startStudy(i){
+  const info = lists[i];
+  const csvItems = await loadCSV(info.file);
+
+  currentList = csvItems.map(item=>({
+    word: item.word,
+    meaning: item.meaning,
+    image: item.image
+  }));
+
+  title = info.title;
+  round = 1;
+  fullRoundCount = 0;
+  dontKnow = [];
+
   resetOrder();
   show("studyScreen");
   nextQuestion();
 }
 
 function resetOrder(){
-  order=[];
-  for(let i=0;i<currentList.length;i++){
-    order.push(i);
-  }
+  order = [...currentList.keys()];
   order.sort(()=>Math.random()-0.5);
-  index=0;
+  index = 0;
 }
 
 // ================== 出題 ==================
 function nextQuestion(){
 
-  // ★ 全問終了
   if(index >= order.length){
     fullRoundCount++;
 
-    // ① 間違いゼロ → 終了確認
     if(dontKnow.length === 0){
       if(confirm("間違いがなくなりました。\n練習を終わりますか？")){
-        show("listScreen");
+        loadLists();
         return;
       }
     }
 
-    // ② 3回繰り返し → 強制終了
     if(fullRoundCount >= 3){
       alert("3回繰り返したので、今回は終了です。");
-      show("listScreen");
+      loadLists();
       return;
     }
 
-    // 間違いのみ再出題
     if(dontKnow.length > 0){
       currentList = dontKnow.map(i=>currentList[i]);
-      dontKnow=[];
+      dontKnow = [];
     }
 
     round++;
     resetOrder();
   }
 
-  let qIndex=order[index];
-  let item=currentList[qIndex];
+  const item = currentList[order[index]];
 
   document.getElementById("studyTitle").innerText =
-    `${title}（${round}巡目 / 全問${fullRoundCount}回）`;
+    `${title}（${round}巡目）`;
 
-  document.getElementById("questionWord").innerText=item.word;
-  document.getElementById("answerMeaning").innerText="";
+  document.getElementById("questionWord").innerText = item.word;
+  document.getElementById("answerMeaning").innerText = "";
+
+  const img = document.getElementById("wordImage");
+  if(item.image){
+    img.src = "images/" + item.image;
+    img.style.display = "block";
+  }else{
+    img.style.display = "none";
+  }
 }
 
 // ================== 回答 ==================
 function markKnow(){
-  let item=currentList[order[index]];
-  document.getElementById("answerMeaning").innerText=item.meaning;
+  const item = currentList[order[index]];
+  document.getElementById("answerMeaning").innerText = item.meaning;
+
   setTimeout(()=>{
     index++;
     nextQuestion();
@@ -175,8 +221,10 @@ function markKnow(){
 
 function markDontKnow(){
   dontKnow.push(order[index]);
-  let item=currentList[order[index]];
-  document.getElementById("answerMeaning").innerText=item.meaning;
+
+  const item = currentList[order[index]];
+  document.getElementById("answerMeaning").innerText = item.meaning;
+
   setTimeout(()=>{
     index++;
     nextQuestion();
@@ -185,9 +233,11 @@ function markDontKnow(){
 
 // ================== 音声 ==================
 function speakText(){
-  let text=document.getElementById("questionWord").innerText;
-  let u=new SpeechSynthesisUtterance(text);
-  u.lang="en-US";
+  const text = document.getElementById("questionWord").innerText;
+  if(!text) return;
+
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = "en-US";
   speechSynthesis.speak(u);
 }
 
@@ -197,3 +247,4 @@ loadLists();
 </script>
 </body>
 </html>
+

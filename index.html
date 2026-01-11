@@ -8,38 +8,47 @@
 body{
   font-family: Arial, sans-serif;
   background:#fff5fb;
-  padding:15px;
+  padding:2vw;
 }
 
-h2{ color:#ff7eb8; }
+h2{
+  color:#ff7eb8;
+  font-size:4.5vw;
+}
+
+h3{
+  font-size:4vw;
+}
 
 .screen{ display:none; }
 
 .card{
   background:white;
-  padding:15px;
+  padding:3vw;
   border-radius:18px;
   box-shadow:0 4px 10px rgba(0,0,0,0.08);
-  margin-bottom:15px;
+  margin-bottom:4vw;
 }
 
 /* ===== 上部固定メニュー ===== */
 #topMenu{
   position:fixed;
-  top:10px;
-  right:10px;
+  top:1vw;
+  right:1vw;
   z-index:100;
 }
 
 #topMenu button{
-  margin-left:5px;
+  margin-left:1vw;
 }
 
+/* ===== ボタン共通 ===== */
 button{
-  padding:10px 14px;
+  padding:2.2vw 3.5vw;
   border-radius:20px;
   border:none;
-  font-size:14px;
+  font-size:3.5vw;
+  margin:1vw;
 }
 
 .btn-pink{ background:#ff9bcd; }
@@ -47,26 +56,34 @@ button{
 .btn-blue{ background:#9bd8ff; }
 .btn-gray{ background:#dddddd; }
 
+/* ===== 単語表示 ===== */
 .big{
-  font-size:5vw;
-  margin:12px 0;
+  font-size:6vw;
+  margin:3vw 0;
+  cursor:pointer;
+  text-align:center;
+}
+
+/* ===== 画像 ===== */
+#wordImage{
+  max-width:70%;
+  display:none;
+  margin:3vw auto;
   cursor:pointer;
 }
 
-#wordImage{
-  max-width:60%;
-  display:none;
-  margin:10px auto;
-}
-
-/* ===== スマホ最適化 ===== */
+/* ===== スマホ縦画面強化 ===== */
 @media (max-width: 600px){
-  .big{
-    font-size:8vw;
-  }
+  h2{ font-size:7vw; }
+  h3{ font-size:6vw; }
+
   button{
-    font-size:16px;
-    padding:12px 16px;
+    font-size:5vw;
+    padding:3vw 5vw;
+  }
+
+  .big{
+    font-size:9vw;
   }
 }
 </style>
@@ -76,13 +93,13 @@ button{
 
 <h2>🌸 英単語暗記アプリ by Koji NIHEI 2026 🌸</h2>
 
-<!-- ===== 上部メニュー ===== -->
+<!-- ===== 上部固定メニュー ===== -->
 <div id="topMenu">
   <button class="btn-blue" onclick="pauseStudy()">中断</button>
   <button class="btn-gray" onclick="endStudy()">終了</button>
 </div>
 
-<!-- ===== リスト選択 ===== -->
+<!-- ===== リスト選択画面 ===== -->
 <div id="listScreen" class="screen card">
   <h3>📚 リストを選んでね</h3>
   <div id="listContainer"></div>
@@ -94,7 +111,7 @@ button{
 
   <div class="big" id="questionWord" onclick="speakText()"></div>
 
-  <img id="wordImage">
+  <img id="wordImage" onclick="speakText()">
 
   <div class="big" id="answerMeaning" style="color:#0077ff;"></div>
 
@@ -234,25 +251,19 @@ function markDontKnow(){
 }
 
 // ===== 中断・再開・終了 =====
-function pauseStudy(){
-  show("pauseScreen");
-}
-
-function resumeStudy(){
-  show("studyScreen");
-}
-
+function pauseStudy(){ show("pauseScreen"); }
+function resumeStudy(){ show("studyScreen"); }
 function endStudy(){
   if(confirm("本当に終了しますか？")){
     loadLists();
   }
 }
 
-// ===== 音声 =====
+// ===== 音声（単語・画像共通） =====
 function speakText(){
-  const t=document.getElementById("questionWord").innerText;
-  if(!t) return;
-  const u=new SpeechSynthesisUtterance(t);
+  const text=document.getElementById("questionWord").innerText;
+  if(!text) return;
+  const u=new SpeechSynthesisUtterance(text);
   u.lang="en-US";
   speechSynthesis.speak(u);
 }

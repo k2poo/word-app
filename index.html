@@ -11,7 +11,6 @@ body{
   padding:2vw;
 }
 
-/* ===== 画面共通 ===== */
 .screen{ display:none; }
 
 .card{
@@ -22,7 +21,6 @@ body{
   margin-bottom:4vw;
 }
 
-/* ===== 上部固定メニュー ===== */
 #topMenu{
   position:fixed;
   top:1vw;
@@ -30,11 +28,8 @@ body{
   z-index:100;
 }
 
-#topMenu button{
-  margin-left:1vw;
-}
+#topMenu button{ margin-left:1vw; }
 
-/* ===== ボタン共通 ===== */
 button{
   padding:2.2vw 3.5vw;
   border-radius:20px;
@@ -48,7 +43,6 @@ button{
 .btn-blue{ background:#9bd8ff; }
 .btn-gray{ background:#dddddd; }
 
-/* ===== 単語表示 ===== */
 .big{
   font-size:6vw;
   margin:3vw 0;
@@ -56,7 +50,6 @@ button{
   text-align:center;
 }
 
-/* ===== 画像 ===== */
 #wordImage{
   max-width:70%;
   display:none;
@@ -64,7 +57,6 @@ button{
   cursor:pointer;
 }
 
-/* ===== 右下固定 情報バー ===== */
 #infoBar{
   position:fixed;
   bottom:1.5vw;
@@ -87,71 +79,53 @@ button{
   color:#555;
 }
 
-/* ===== スマホ縦画面対応 ===== */
 @media (max-width: 600px){
   button{
     font-size:5vw;
     padding:3vw 5vw;
   }
-
-  .big{
-    font-size:9vw;
-  }
-
-  #appName{
-    font-size:3vw;
-  }
-
-  #statusText{
-    font-size:3.8vw;
-  }
+  .big{ font-size:9vw; }
+  #appName{ font-size:3vw; }
+  #statusText{ font-size:3.8vw; }
 }
 </style>
 </head>
 
 <body>
 
-<!-- ===== 上部固定メニュー ===== -->
 <div id="topMenu">
   <button class="btn-blue" onclick="pauseStudy()">中断</button>
   <button class="btn-gray" onclick="confirmEnd()">終了</button>
 </div>
 
-<!-- ===== リスト選択画面 ===== -->
 <div id="listScreen" class="screen card">
   <h3>📚 リストを選んでね</h3>
   <div id="listContainer"></div>
 </div>
 
-<!-- ===== 学習画面 ===== -->
 <div id="studyScreen" class="screen card">
-  <h3></h3>
-
-  <div class="big" id="questionWord" onclick="speakText()"></div>
-
-  <img id="wordImage" onclick="speakText()">
-
-  <div class="big" id="answerMeaning" style="color:#0077ff;"></div>
+  <div class="big" id="questionWord" onclick="speakText('question')"></div>
+  <img id="wordImage" onclick="speakText('question')">
+  <div class="big" id="answerMeaning"
+       style="color:#0077ff;"
+       onclick="speakText('answer')"></div>
 
   <button class="btn-green" onclick="markKnow()">分かる</button>
   <button class="btn-pink" onclick="markDontKnow()">分からない</button>
 </div>
 
-<!-- ===== 中断画面 ===== -->
 <div id="pauseScreen" class="screen card">
   <h3>⏸ 中断中</h3>
   <button class="btn-green" onclick="resumeStudy()">再開</button>
   <button class="btn-gray" onclick="confirmEnd()">終了</button>
 </div>
 
-<!-- ===== 右下固定 情報表示 ===== -->
 <div id="infoBar">
   <div id="appName">🌸 英単語暗記アプリ by Koji NIHEI 2026 🌸</div>
   <div id="statusText"></div>
 </div>
 
 <script>
-// ===== リスト情報 =====
 const lists = [
   { title:"動物", file:"動物.csv" },
   { title:"フルーツ", file:"フルーツ.csv" },
@@ -164,165 +138,110 @@ const lists = [
   { title:"文化部", file:"文化部.csv" },
   { title:"曜日", file:"曜日.csv" }
 ];
-// ===== 状態 =====
-let currentList=[];
-let title="";
-let order=[];
-let index=0;
-let dontKnow=[];
-let round=1;
-let fullRoundCount=0;
 
-// ===== 画面切替 =====
+let currentList=[], title="", order=[], index=0;
+let dontKnow=[], round=1, fullRoundCount=0;
+
 function show(id){
   document.querySelectorAll(".screen").forEach(s=>s.style.display="none");
   document.getElementById(id).style.display="block";
 }
 
-// ===== CSV読み込み =====
 async function loadCSV(file){
   const res = await fetch("lists/" + file);
   const text = await res.text();
   const lines = text.trim().split("\n");
   const headers = lines[0].split(",");
-  const items = [];
-
-  for(let i=1;i<lines.length;i++){
-    const values = lines[i].split(",");
-    let obj = {};
-    headers.forEach((h,j)=>obj[h.trim()] = values[j].trim());
-    items.push(obj);
-  }
-  return items;
+  return lines.slice(1).map(line=>{
+    const values=line.split(",");
+    let o={};
+    headers.forEach((h,i)=>o[h.trim()]=values[i]?.trim());
+    return o;
+  });
 }
 
-// ===== リスト表示 =====
 function loadLists(){
-  const c = document.getElementById("listContainer");
-  c.innerHTML = "";
-
+  const c=document.getElementById("listContainer");
+  c.innerHTML="";
   lists.forEach((l,i)=>{
-    const btn = document.createElement("button");
-    btn.className = "btn-blue";
-    btn.innerText = l.title;
-    btn.onclick = ()=>startStudy(i);
-    c.appendChild(btn);
+    const b=document.createElement("button");
+    b.className="btn-blue";
+    b.innerText=l.title;
+    b.onclick=()=>startStudy(i);
+    c.appendChild(b);
   });
-
-  document.getElementById("statusText").innerText = "";
+  document.getElementById("statusText").innerText="";
   show("listScreen");
 }
 
-// ===== 学習開始 =====
 async function startStudy(i){
-  const info = lists[i];
-  const csv = await loadCSV(info.file);
-
-  currentList = csv.map(x=>({
-    word:x.word,
-    meaning:x.meaning,
-    image:x.image
-  }));
-
-  title = info.title;
-  index = 0;
-  round = 1;
-  fullRoundCount = 0;
-  dontKnow = [];
-
+  const csv=await loadCSV(lists[i].file);
+  currentList=csv.map(x=>({word:x.word,meaning:x.meaning,image:x.image}));
+  title=lists[i].title;
+  index=0; round=1; fullRoundCount=0; dontKnow=[];
   resetOrder();
   show("studyScreen");
   nextQuestion();
 }
 
 function resetOrder(){
-  order = [...currentList.keys()];
-  order.sort(()=>Math.random()-0.5);
-  index = 0;
+  order=[...currentList.keys()].sort(()=>Math.random()-0.5);
+  index=0;
 }
 
-// ===== 出題 =====
 function nextQuestion(){
-  if(index >= order.length){
+  if(index>=order.length){
     fullRoundCount++;
-
-    if(dontKnow.length === 0){
-      if(confirm("間違いがなくなりました。\n終了しますか？")){
-        loadLists();
-        return;
-      }
+    if(dontKnow.length===0 && confirm("間違いがなくなりました。\n終了しますか？")){
+      loadLists(); return;
     }
-
-    if(fullRoundCount >= 3){
+    if(fullRoundCount>=3){
       alert("3回繰り返したので終了します。");
-      loadLists();
-      return;
+      loadLists(); return;
     }
-
-    currentList = dontKnow.map(i=>currentList[i]);
-    dontKnow = [];
-    round++;
-    resetOrder();
+    currentList=dontKnow.map(i=>currentList[i]);
+    dontKnow=[]; round++; resetOrder();
   }
 
-  const item = currentList[order[index]];
+  const item=currentList[order[index]];
+  document.getElementById("questionWord").innerText=item.word;
+  document.getElementById("answerMeaning").innerText="";
+  document.getElementById("statusText").innerText=`${title}（${round}巡目）`;
 
-  document.getElementById("questionWord").innerText = item.word;
-  document.getElementById("answerMeaning").innerText = "";
-
-  document.getElementById("statusText").innerText =
-    `${title}（${round}巡目）`;
-
-  const img = document.getElementById("wordImage");
-  if(item.image){
-    img.src = "images/" + item.image;
-    img.style.display = "block";
-  }else{
-    img.style.display = "none";
-  }
+  const img=document.getElementById("wordImage");
+  if(item.image){ img.src="images/"+item.image; img.style.display="block"; }
+  else{ img.style.display="none"; }
 }
 
-// ===== 回答 =====
 function markKnow(){
-  document.getElementById("answerMeaning").innerText =
-    currentList[order[index]].meaning;
+  document.getElementById("answerMeaning").innerText=currentList[order[index]].meaning;
   setTimeout(()=>{ index++; nextQuestion(); },800);
 }
 
 function markDontKnow(){
   dontKnow.push(order[index]);
-  document.getElementById("answerMeaning").innerText =
-    currentList[order[index]].meaning;
-  setTimeout(()=>{ index++; nextQuestion(); },1200);
+  document.getElementById("answerMeaning").innerText=currentList[order[index]].meaning;
+  setTimeout(()=>{ index++; nextQuestion(); },1700);
 }
 
-// ===== 中断・再開・終了 =====
 function pauseStudy(){ show("pauseScreen"); }
 function resumeStudy(){ show("studyScreen"); }
 
 function confirmEnd(){
-  if(confirm("アプリを終了しますか？")){
-    loadLists();
-  }
+  if(confirm("アプリを終了しますか？")) loadLists();
 }
 
-// ===== 音声 =====
-function speakText(){
-  const text = document.getElementById("questionWord").innerText;
+function speakText(type){
+  const text = type==="answer"
+    ? document.getElementById("answerMeaning").innerText
+    : document.getElementById("questionWord").innerText;
   if(!text) return;
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = "en-US";
+  const u=new SpeechSynthesisUtterance(text);
+  u.lang="en-US";
   speechSynthesis.speak(u);
 }
 
-// 初期表示
 loadLists();
 </script>
-
 </body>
 </html>
-
-
-
-
-

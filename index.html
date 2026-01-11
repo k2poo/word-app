@@ -6,7 +6,7 @@
 
 <style>
 body{
-  font-family: Arial;
+  font-family: Arial, sans-serif;
   background:#fff5fb;
   padding:15px;
 }
@@ -23,12 +23,23 @@ h2{ color:#ff7eb8; }
   margin-bottom:15px;
 }
 
+/* ===== 上部固定メニュー ===== */
+#topMenu{
+  position:fixed;
+  top:10px;
+  right:10px;
+  z-index:100;
+}
+
+#topMenu button{
+  margin-left:5px;
+}
+
 button{
   padding:10px 14px;
   border-radius:20px;
   border:none;
   font-size:14px;
-  margin:5px;
 }
 
 .btn-pink{ background:#ff9bcd; }
@@ -37,15 +48,26 @@ button{
 .btn-gray{ background:#dddddd; }
 
 .big{
-  font-size:30px;
+  font-size:5vw;
   margin:12px 0;
   cursor:pointer;
 }
 
 #wordImage{
-  max-width:200px;
+  max-width:60%;
   display:none;
-  margin:10px 0;
+  margin:10px auto;
+}
+
+/* ===== スマホ最適化 ===== */
+@media (max-width: 600px){
+  .big{
+    font-size:8vw;
+  }
+  button{
+    font-size:16px;
+    padding:12px 16px;
+  }
 }
 </style>
 </head>
@@ -54,13 +76,19 @@ button{
 
 <h2>🌸 英単語暗記アプリ by Koji NIHEI 2026 🌸</h2>
 
-<!-- ================= リスト選択画面 ================= -->
+<!-- ===== 上部メニュー ===== -->
+<div id="topMenu">
+  <button class="btn-blue" onclick="pauseStudy()">中断</button>
+  <button class="btn-gray" onclick="endStudy()">終了</button>
+</div>
+
+<!-- ===== リスト選択 ===== -->
 <div id="listScreen" class="screen card">
   <h3>📚 リストを選んでね</h3>
   <div id="listContainer"></div>
 </div>
 
-<!-- ================= 学習画面 ================= -->
+<!-- ===== 学習画面 ===== -->
 <div id="studyScreen" class="screen card">
   <h3 id="studyTitle"></h3>
 
@@ -74,177 +102,163 @@ button{
   <button class="btn-pink" onclick="markDontKnow()">分からない</button>
 </div>
 
-<script>
+<!-- ===== 中断画面 ===== -->
+<div id="pauseScreen" class="screen card">
+  <h3>⏸ 中断中</h3>
+  <button class="btn-green" onclick="resumeStudy()">再開</button>
+  <button class="btn-gray" onclick="endStudy()">終了</button>
+</div>
 
-// ================== リスト情報（CSVファイル名） ==================
+<script>
+// ===== リスト情報 =====
 const lists = [
   { title:"動物", file:"animals.csv" },
   { title:"果物", file:"fruits.csv" }
 ];
 
-// ================== 学習用変数 ==================
-let currentList = [];
-let title = "";
-let order = [];
-let index = 0;
+// ===== 状態 =====
+let currentList=[];
+let title="";
+let order=[];
+let index=0;
+let dontKnow=[];
+let round=1;
+let fullRoundCount=0;
 
-let dontKnow = [];
-let round = 1;
-let fullRoundCount = 0;
-
-// ================== 画面切替 ==================
+// ===== 画面切替 =====
 function show(id){
   document.querySelectorAll(".screen").forEach(s=>s.style.display="none");
   document.getElementById(id).style.display="block";
 }
 
-// ================== CSV読み込み ==================
-async function loadCSV(fileName){
-  const res = await fetch("lists/" + fileName);
-  const text = await res.text();
-
-  const lines = text.trim().split("\n");
-  const headers = lines[0].split(",");
-
-  const items = [];
-
+// ===== CSV読み込み =====
+async function loadCSV(file){
+  const res=await fetch("lists/"+file);
+  const text=await res.text();
+  const lines=text.trim().split("\n");
+  const headers=lines[0].split(",");
+  const items=[];
   for(let i=1;i<lines.length;i++){
-    const values = lines[i].split(",");
-    let obj = {};
-    headers.forEach((h,idx)=>{
-      obj[h.trim()] = values[idx].trim();
-    });
+    const values=lines[i].split(",");
+    let obj={};
+    headers.forEach((h,j)=>obj[h.trim()]=values[j].trim());
     items.push(obj);
   }
-
   return items;
 }
 
-// ================== リスト表示 ==================
+// ===== リスト表示 =====
 function loadLists(){
-  const c = document.getElementById("listContainer");
-  c.innerHTML = "";
-
+  const c=document.getElementById("listContainer");
+  c.innerHTML="";
   lists.forEach((l,i)=>{
-    const btn = document.createElement("button");
-    btn.className = "btn-blue";
-    btn.innerText = l.title;
-    btn.onclick = ()=>startStudy(i);
+    const btn=document.createElement("button");
+    btn.className="btn-blue";
+    btn.innerText=l.title;
+    btn.onclick=()=>startStudy(i);
     c.appendChild(btn);
   });
-
   show("listScreen");
 }
 
-// ================== 学習開始 ==================
+// ===== 学習開始 =====
 async function startStudy(i){
-  const info = lists[i];
-  const csvItems = await loadCSV(info.file);
-
-  currentList = csvItems.map(item=>({
-    word: item.word,
-    meaning: item.meaning,
-    image: item.image
+  const info=lists[i];
+  const csv=await loadCSV(info.file);
+  currentList=csv.map(x=>({
+    word:x.word,
+    meaning:x.meaning,
+    image:x.image
   }));
-
-  title = info.title;
-  round = 1;
-  fullRoundCount = 0;
-  dontKnow = [];
-
+  title=info.title;
+  index=0;
+  round=1;
+  fullRoundCount=0;
+  dontKnow=[];
   resetOrder();
   show("studyScreen");
   nextQuestion();
 }
 
 function resetOrder(){
-  order = [...currentList.keys()];
+  order=[...currentList.keys()];
   order.sort(()=>Math.random()-0.5);
-  index = 0;
+  index=0;
 }
 
-// ================== 出題 ==================
+// ===== 出題 =====
 function nextQuestion(){
-
-  if(index >= order.length){
+  if(index>=order.length){
     fullRoundCount++;
-
-    if(dontKnow.length === 0){
-      if(confirm("間違いがなくなりました。\n練習を終わりますか？")){
-        loadLists();
-        return;
+    if(dontKnow.length===0){
+      if(confirm("間違いがなくなりました。\n終了しますか？")){
+        loadLists(); return;
       }
     }
-
-    if(fullRoundCount >= 3){
-      alert("3回繰り返したので、今回は終了です。");
-      loadLists();
-      return;
+    if(fullRoundCount>=3){
+      alert("3回繰り返したので終了します。");
+      loadLists(); return;
     }
-
-    if(dontKnow.length > 0){
-      currentList = dontKnow.map(i=>currentList[i]);
-      dontKnow = [];
-    }
-
+    currentList=dontKnow.map(i=>currentList[i]);
+    dontKnow=[];
     round++;
     resetOrder();
   }
 
-  const item = currentList[order[index]];
+  const item=currentList[order[index]];
+  document.getElementById("studyTitle").innerText=`${title}（${round}巡目）`;
+  document.getElementById("questionWord").innerText=item.word;
+  document.getElementById("answerMeaning").innerText="";
 
-  document.getElementById("studyTitle").innerText =
-    `${title}（${round}巡目）`;
-
-  document.getElementById("questionWord").innerText = item.word;
-  document.getElementById("answerMeaning").innerText = "";
-
-  const img = document.getElementById("wordImage");
+  const img=document.getElementById("wordImage");
   if(item.image){
-    img.src = "images/" + item.image;
-    img.style.display = "block";
+    img.src="images/"+item.image;
+    img.style.display="block";
   }else{
-    img.style.display = "none";
+    img.style.display="none";
   }
 }
 
-// ================== 回答 ==================
+// ===== 回答 =====
 function markKnow(){
-  const item = currentList[order[index]];
-  document.getElementById("answerMeaning").innerText = item.meaning;
-
-  setTimeout(()=>{
-    index++;
-    nextQuestion();
-  },800);
+  document.getElementById("answerMeaning").innerText=
+    currentList[order[index]].meaning;
+  setTimeout(()=>{ index++; nextQuestion(); },800);
 }
 
 function markDontKnow(){
   dontKnow.push(order[index]);
-
-  const item = currentList[order[index]];
-  document.getElementById("answerMeaning").innerText = item.meaning;
-
-  setTimeout(()=>{
-    index++;
-    nextQuestion();
-  },1200);
+  document.getElementById("answerMeaning").innerText=
+    currentList[order[index]].meaning;
+  setTimeout(()=>{ index++; nextQuestion(); },1200);
 }
 
-// ================== 音声 ==================
-function speakText(){
-  const text = document.getElementById("questionWord").innerText;
-  if(!text) return;
+// ===== 中断・再開・終了 =====
+function pauseStudy(){
+  show("pauseScreen");
+}
 
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = "en-US";
+function resumeStudy(){
+  show("studyScreen");
+}
+
+function endStudy(){
+  if(confirm("本当に終了しますか？")){
+    loadLists();
+  }
+}
+
+// ===== 音声 =====
+function speakText(){
+  const t=document.getElementById("questionWord").innerText;
+  if(!t) return;
+  const u=new SpeechSynthesisUtterance(t);
+  u.lang="en-US";
   speechSynthesis.speak(u);
 }
 
 // 初期表示
 loadLists();
-
 </script>
 </body>
 </html>
-

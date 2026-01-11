@@ -11,15 +11,7 @@ body{
   padding:2vw;
 }
 
-h2{
-  color:#ff7eb8;
-  font-size:4.5vw;
-}
-
-h3{
-  font-size:4vw;
-}
-
+/* ===== 画面共通 ===== */
 .screen{ display:none; }
 
 .card{
@@ -95,11 +87,8 @@ button{
   color:#555;
 }
 
-/* ===== スマホ縦画面強化 ===== */
+/* ===== スマホ縦画面対応 ===== */
 @media (max-width: 600px){
-  h2{ font-size:7vw; }
-  h3{ font-size:6vw; }
-
   button{
     font-size:5vw;
     padding:3vw 5vw;
@@ -122,12 +111,10 @@ button{
 
 <body>
 
-<h2>🌸 英単語暗記アプリ by Koji NIHEI 2026 🌸</h2>
-
 <!-- ===== 上部固定メニュー ===== -->
 <div id="topMenu">
   <button class="btn-blue" onclick="pauseStudy()">中断</button>
-  <button class="btn-gray" onclick="endStudy()">終了</button>
+  <button class="btn-gray" onclick="confirmEnd()">終了</button>
 </div>
 
 <!-- ===== リスト選択画面 ===== -->
@@ -154,7 +141,7 @@ button{
 <div id="pauseScreen" class="screen card">
   <h3>⏸ 中断中</h3>
   <button class="btn-green" onclick="resumeStudy()">再開</button>
-  <button class="btn-gray" onclick="endStudy()">終了</button>
+  <button class="btn-gray" onclick="confirmEnd()">終了</button>
 </div>
 
 <!-- ===== 右下固定 情報表示 ===== -->
@@ -305,13 +292,14 @@ function markDontKnow(){
 // ===== 中断・再開・終了 =====
 function pauseStudy(){ show("pauseScreen"); }
 function resumeStudy(){ show("studyScreen"); }
-function endStudy(){
-  if(confirm("本当に終了しますか？")){
+
+function confirmEnd(){
+  if(confirm("アプリを終了しますか？")){
     loadLists();
   }
 }
 
-// ===== 音声（単語・画像共通） =====
+// ===== 音声 =====
 function speakText(){
   const text = document.getElementById("questionWord").innerText;
   if(!text) return;

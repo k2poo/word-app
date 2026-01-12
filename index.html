@@ -126,13 +126,11 @@ button{
 </div>
 
 <script>
-// ===== リスト定義（フォルダ対応）=====
+// ===== リスト定義 =====
 const lists = [
   { title:"動物", file:"動物.csv", level:"基本", folder:"lists" },
   { title:"フルーツ", file:"フルーツ.csv", level:"基本", folder:"lists" },
-
-  { title:"旅行", file:"旅行.csv", level:"中級", folder:"lists2" },
-  { title:"ニュース", file:"ニュース.csv", level:"中級", folder:"lists2" }
+  { title:"旅行", file:"旅行.csv", level:"中級", folder:"lists2" }
 ];
 
 let currentList=[], title="", order=[], index=0;
@@ -202,16 +200,13 @@ function resetOrder(){
 function nextQuestion(){
   if(index>=order.length){
     fullRoundCount++;
-
     if(dontKnow.length===0 && confirm("間違いがなくなりました。\n終了しますか？")){
       loadLists(); return;
     }
-
     if(fullRoundCount>=3){
       alert("3回繰り返したので終了します。");
       loadLists(); return;
     }
-
     currentList=dontKnow.map(i=>currentList[i]);
     dontKnow=[]; round++; resetOrder();
   }
@@ -233,14 +228,14 @@ function nextQuestion(){
 // ===== 回答 =====
 function markKnow(){
   document.getElementById("answerMeaning").innerText=currentList[order[index]].meaning;
-  speakAnswer();
+  speakAnswer();   // ★ 解答音声
   setTimeout(()=>{ index++; nextQuestion(); },800);
 }
 
 function markDontKnow(){
   dontKnow.push(order[index]);
   document.getElementById("answerMeaning").innerText=currentList[order[index]].meaning;
-  speakAnswer();
+  speakAnswer();   // ★ 解答音声
   setTimeout(()=>{ index++; nextQuestion(); },1700);
 }
 
@@ -258,7 +253,7 @@ function speakQuestion(){
 }
 
 function speakAnswer(){
-  speak(currentList[order[index]].word);
+  speak(currentList[order[index]].meaning);
 }
 
 function speak(text){

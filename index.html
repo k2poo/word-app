@@ -109,8 +109,11 @@ button{
 
 <script>
   // Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
+
+
+
+
+  
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
@@ -125,6 +128,13 @@ const firebaseConfig = {
   appId: "1:813810211022:web:79a9f40ed9361ea38d189f",
   measurementId: "G-X57CWZXG7E"
 };
+  /* 初期化 */
+firebase.initializeApp(firebaseConfig);
+
+/* 匿名ログイン */
+firebase.auth().signInAnonymously();
+
+
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
@@ -308,12 +318,20 @@ function endStudy(){
 
 // 初期起動
 loadAllLists();
+
+alert("JSはここまで動いています");
+loadLists();
+  
 </script>
   
+
+
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
   
 </body>
 </html>
+
 

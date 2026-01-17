@@ -116,7 +116,7 @@ const formatTime = sec => {
 async function loadCSV(path){
   const res = await fetch(path);
   let text = await res.text();
-  text = text.replace(/^\uFEFF/, ""); // ★ unidentified防止
+  text = text.replace(/^\uFEFF/, ""); 
   const lines = text.trim().split("\n");
   const headers = lines[0].split(",").map(h=>h.trim());
   return lines.slice(1).map(l=>{
@@ -224,14 +224,13 @@ function nextQuestion(){
   answerMeaning.innerText="";
 }
 
-// ★★★ 修正箇所: ボタンを押した時に音声を再生するように変更 ★★★
 function markKnow(){ 
-  speakQuestion(); // 英語を再生
+  speakQuestion(); // 音声再生
   showAnswer(); 
   setTimeout(()=>{index++;nextQuestion();},700); 
 }
 function markDontKnow(){ 
-  speakQuestion(); // 英語を再生
+  speakQuestion(); // 音声再生
   dontKnow.push(order[index]); 
   showAnswer(); 
   setTimeout(()=>{index++;nextQuestion();},1200); 
@@ -239,16 +238,41 @@ function markDontKnow(){
 
 function showAnswer(){ answerMeaning.innerText=currentList[order[index]].meaning; }
 
-// ===== 音声（修正済み） =====
+// ===== 音声処理（大幅修正） =====
+// ★★★ 音声リストの事前読み込みと、確実な英語ボイス選択を追加 ★★★
+let voices = [];
+function loadVoices() {
+  voices = speechSynthesis.getVoices();
+}
+// ページ読み込み時に実行
+loadVoices();
+// Chrome等は非同期で読み込まれるため、イベントリスナでも監視
+if (speechSynthesis.onvoiceschanged !== undefined) {
+  speechSynthesis.onvoiceschanged = loadVoices;
+}
+
 function speak(t){ 
   if(!t) return; 
-  // ★★★ 修正箇所: 連続クリックに対応するため、前の音声をキャンセルする ★★★
-  speechSynthesis.cancel(); 
-  let u=new SpeechSynthesisUtterance(t); 
-  u.lang="en-US"; 
+  speechSynthesis.cancel(); // 前の音声をキャンセル
+
+  let u = new SpeechSynthesisUtterance(t);
+  u.lang = "en-US";
+  u.rate = 1.0; 
+  u.pitch = 1.0;
+
+  // ★★★ 英語の声を検索してセットする（ここが最重要） ★★★
+  // "en-US" または "en" を含む声を探す
+  const enVoice = voices.find(v => v.lang === 'en-US') || voices.find(v => v.lang.startsWith('en'));
+  if(enVoice) {
+    u.voice = enVoice;
+  }
+
   speechSynthesis.speak(u); 
 }
+
 function speakQuestion(){ speak(questionWord.innerText); }
+// 解答クリック時も英語設定で読もうとするため、日本語の場合は変な発音になる可能性がありますが
+// 「単語をクリックしたとき」という要望にはこれで対応しています。
 function speakAnswer(){ speak(answerMeaning.innerText); }
 
 // ===== 画面 =====

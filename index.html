@@ -231,8 +231,7 @@ function markKnow(){ showAnswer(); setTimeout(()=>{index++;nextQuestion();},700)
 function markDontKnow(){ dontKnow.push(order[index]); showAnswer(); setTimeout(()=>{index++;nextQuestion();},1200); }
 function showAnswer(){ answerMeaning.innerText=currentList[order[index]].meaning; }
 
-  // <!-- ===== 音声（修正済み） ===== -->
-<script>
+// ===== 音声 =====
 function speak(text, lang){
   if(!text) return;
 
@@ -251,8 +250,6 @@ function speakQuestion(){
 function speakAnswer(){
   speak(document.getElementById("answerMeaning").innerText, "ja-JP");
 }
-</script>
-
 // ===== 画面 =====
 async function endStudy(auto){
   if(studyStartTime){

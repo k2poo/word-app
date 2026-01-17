@@ -224,14 +224,14 @@ function nextQuestion(){
   answerMeaning.innerText="";
 }
 
-// ★★★ 修正箇所: ボタンをクリックした際も speakQuestion() を呼び出す ★★★
+// ★★★ 修正箇所: 音声を「答え」に変更 (speakQuestion -> speakAnswer) ★★★
 function markKnow(){ 
-  speakQuestion(); // 英語を発音
+  speakAnswer(); // 答え（意味）を再生
   showAnswer(); 
   setTimeout(()=>{index++;nextQuestion();},700); 
 }
 function markDontKnow(){ 
-  speakQuestion(); // 英語を発音
+  speakAnswer(); // 答え（意味）を再生
   dontKnow.push(order[index]); 
   showAnswer(); 
   setTimeout(()=>{index++;nextQuestion();},1200); 

@@ -224,29 +224,29 @@ function nextQuestion(){
   answerMeaning.innerText="";
 }
 
-// ★★★ 修正箇所: ボタンクリック時に「答え」を読み上げる ★★★
+// ★★★ 修正箇所: ボタンクリック時に speakAnswer() を呼び出す ★★★
+// これで、答えをクリックした時と同じ音声（英語設定）が流れます。
 function markKnow(){ 
   showAnswer(); 
-  speakAnswer(); // 答え（意味）を再生
+  speakAnswer(); 
   setTimeout(()=>{index++;nextQuestion();},700); 
 }
 function markDontKnow(){ 
   dontKnow.push(order[index]); 
   showAnswer(); 
-  speakAnswer(); // 答え（意味）を再生
+  speakAnswer(); 
   setTimeout(()=>{index++;nextQuestion();},1200); 
 }
 
 function showAnswer(){ answerMeaning.innerText=currentList[order[index]].meaning; }
 
-// ===== 音声（シンプル版） =====
-// すべて "en-US" (英語設定) で読み上げます。
+// ===== 音声（シンプル・英語固定版） =====
 function speak(t){ 
   if(!t) return; 
   speechSynthesis.cancel(); 
 
   const u = new SpeechSynthesisUtterance(t);
-  u.lang = "en-US"; // 英語設定（日本語が含まれていても英語なまりで読みます）
+  u.lang = "en-US"; // 常に英語として読み上げる
   speechSynthesis.speak(u); 
 }
 

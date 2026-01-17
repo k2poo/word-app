@@ -58,7 +58,6 @@ button{
 
 <body>
 
-<!-- ===== リスト選択 ===== -->
 <div id="listScreen" class="screen card">
   <h3>📘 基本</h3>
   <div id="basicList"></div>
@@ -70,7 +69,6 @@ button{
   <canvas id="studyChart" width="320" height="200"></canvas>
 </div>
 
-<!-- ===== 学習画面 ===== -->
 <div id="studyScreen" class="screen card">
   <div class="big" id="questionWord" onclick="speakQuestion()"></div>
   <div class="big" id="answerMeaning" style="color:#0077ff;"
@@ -86,7 +84,6 @@ button{
   <div id="studyInfo"></div>
 </div>
 
-<!-- ===== Firebase CDN ===== -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
@@ -227,12 +224,30 @@ function nextQuestion(){
   answerMeaning.innerText="";
 }
 
-function markKnow(){ showAnswer(); setTimeout(()=>{index++;nextQuestion();},700); }
-function markDontKnow(){ dontKnow.push(order[index]); showAnswer(); setTimeout(()=>{index++;nextQuestion();},1200); }
+// ★★★ 修正箇所: ボタンを押した時に音声を再生するように変更 ★★★
+function markKnow(){ 
+  speakQuestion(); // 英語を再生
+  showAnswer(); 
+  setTimeout(()=>{index++;nextQuestion();},700); 
+}
+function markDontKnow(){ 
+  speakQuestion(); // 英語を再生
+  dontKnow.push(order[index]); 
+  showAnswer(); 
+  setTimeout(()=>{index++;nextQuestion();},1200); 
+}
+
 function showAnswer(){ answerMeaning.innerText=currentList[order[index]].meaning; }
 
-// ===== 音声 =====
-function speak(t){ if(!t) return; let u=new SpeechSynthesisUtterance(t); u.lang="en-US"; speechSynthesis.speak(u); }
+// ===== 音声（修正済み） =====
+function speak(t){ 
+  if(!t) return; 
+  // ★★★ 修正箇所: 連続クリックに対応するため、前の音声をキャンセルする ★★★
+  speechSynthesis.cancel(); 
+  let u=new SpeechSynthesisUtterance(t); 
+  u.lang="en-US"; 
+  speechSynthesis.speak(u); 
+}
 function speakQuestion(){ speak(questionWord.innerText); }
 function speakAnswer(){ speak(answerMeaning.innerText); }
 

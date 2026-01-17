@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <title>英単語暗記アプリ by Koji NIHEI 2026</title>
 
+<!-- ===== Firebase CDN ===== -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
 <style>
 body{
   font-family: Arial, sans-serif;
@@ -29,6 +33,7 @@ button{
 .btn-green{ background:#9be1a7; }
 .btn-pink{ background:#ff9bcd; }
 .btn-gray{ background:#dddddd; }
+
 .big{
   font-size:7vw;
   margin:3vw 0;
@@ -44,214 +49,149 @@ button{
   position:fixed;
   bottom:1.5vw;
   right:1.5vw;
-  background:rgba(255,255,255,0.9);
+  background:rgba(255,255,255,0.95);
   border-radius:12px;
   padding:1.5vw 2vw;
   box-shadow:0 2px 6px rgba(0,0,0,0.15);
 }
-#studyInfo{
-  font-size:3vw;
-  color:#555;
-}
+canvas{ max-width:100%; }
 </style>
 </head>
 
 <body>
 
-<!-- ===== リスト選択 ===== -->
 <div id="listScreen" class="screen card">
   <h3>📘 基本</h3>
   <div id="basicList"></div>
-
-  <h3>📕 中級</h3>
-  <div id="intermediateList"></div>
-
-  <h3>📊 学習時間（日別）</h3>
-  <canvas id="studyChart" width="320" height="200"></canvas>
 </div>
 
-<!-- ===== 学習画面 ===== -->
 <div id="studyScreen" class="screen card">
-  <div class="big" id="questionWord" onclick="speakQuestion()"></div>
-  <div class="big" id="answerMeaning" style="color:#0077ff;"
-       onclick="speakAnswer()"></div>
+  <div class="big" id="questionWord" onclick="speakWord()"></div>
+  <img id="wordImage">
+  <div class="big" id="answerMeaning" onclick="speakMeaning()"></div>
 
   <button class="btn-green" onclick="markKnow()">分かる</button>
   <button class="btn-pink" onclick="markDontKnow()">分からない</button>
   <button class="btn-gray" onclick="endStudy()">終了</button>
 </div>
 
-<div id="infoBar">
-  <div>🌸 英単語暗記アプリ by Koji NIHEI 2026 🌸</div>
-  <div id="studyInfo"></div>
+<div class="card">
+  <div id="todayTime"></div>
+  <div id="totalTime"></div>
+  <canvas id="graph" height="200"></canvas>
 </div>
 
-<!-- ===== Firebase CDN ===== -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-
 <script>
-// ===== Firebase 初期化 =====
+/* ================= Firebase ================= */
 firebase.initializeApp({
   apiKey: "AIzaSyAYEEHtYUdDylKlSwy4mX2S2mIK5Hs3vJA",
   authDomain: "english-word-app-f7101.firebaseapp.com",
-  projectId: "english-word-app-f7101",
+  projectId: "english-word-app-f7101"
 });
 const db = firebase.firestore();
 
-// ===== userId =====
+/* ================= User ================= */
 let userId = localStorage.getItem("userId");
 if(!userId){
   userId = crypto.randomUUID();
-  localStorage.setItem("userId", userId);
+  localStorage.setItem("userId",userId);
 }
 
-// ===== 時間ユーティリティ =====
-let studyStartTime = null;
-const today = () => new Date().toISOString().slice(0,10);
-const formatTime = sec => {
-  const m = Math.floor(sec/60);
-  const h = Math.floor(m/60);
-  return h ? `${h}時間${m%60}分` : `${m}分`;
-};
-
-// ===== CSV（BOM対策済み） =====
+/* ================= CSV ================= */
 async function loadCSV(path){
-  const res = await fetch(path);
-  let text = await res.text();
-  text = text.replace(/^\uFEFF/, ""); // ★ unidentified防止
-  const lines = text.trim().split("\n");
-  const headers = lines[0].split(",").map(h=>h.trim());
-  return lines.slice(1).map(l=>{
-    const v=l.split(",");
+  const t = await (await fetch(path)).text();
+  const l = t.trim().split("\n");
+  const h = l[0].split(",");
+  return l.slice(1).map(r=>{
+    const v=r.split(",");
     let o={};
-    headers.forEach((h,i)=>o[h]=v[i]?v[i].trim():"");
+    h.forEach((k,i)=>o[k]=v[i]);
     return o;
   });
 }
 
-// ===== Firestore =====
-async function saveClearCount(title){
-  const ref=db.collection("users").doc(userId)
-    .collection("clearedLists").doc(title);
-  const s=await ref.get();
-  await ref.set({count:(s.exists?s.data().count:0)+1});
-}
-async function loadClearCounts(){
-  const s=await db.collection("users").doc(userId)
-    .collection("clearedLists").get();
-  let m={}; s.forEach(d=>m[d.id]=d.data().count); return m;
-}
-async function saveStudyTime(sec){
-  const ref=db.collection("users").doc(userId)
-    .collection("studyTime").doc(today());
-  const s=await ref.get();
-  await ref.set({seconds:(s.exists?s.data().seconds:0)+sec});
-}
-async function loadStudyTimes(){
-  const s=await db.collection("users").doc(userId)
-    .collection("studyTime").get();
-  let m={}; s.forEach(d=>m[d.id]=d.data().seconds); return m;
-}
+/* ================= Study ================= */
+let list=[],order=[],i=0,startTime=0;
 
-// ===== 表示 =====
-async function updateStudyInfo(){
-  const d=await loadStudyTimes();
-  const t=d[today()]||0;
-  const sum=Object.values(d).reduce((a,b)=>a+b,0);
-  studyInfo.innerText=`📘 今日：${formatTime(t)} / 累計：${formatTime(sum)}`;
-}
-async function drawStudyChart(){
-  const d=await loadStudyTimes();
-  const e=Object.entries(d).sort().slice(-7);
-  const c=studyChart, ctx=c.getContext("2d");
-  ctx.clearRect(0,0,c.width,c.height);
-  if(!e.length) return;
-  const vals=e.map(v=>Math.floor(v[1]/60));
-  const max=Math.max(...vals,1);
-  vals.forEach((v,i)=>{
-    const h=v/max*120;
-    ctx.fillStyle="#ff9bcd";
-    ctx.fillRect(30+i*40,160-h,24,h);
-    ctx.fillStyle="#555";
-    ctx.fillText(e[i][0].slice(5),28+i*40,180);
-  });
-}
-
-// ===== 学習ロジック =====
-let currentList=[], order=[], index=0, dontKnow=[], title="", round=1;
-
-async function loadAllLists(){
-  const basic=await loadCSV("lists/index.csv");
-  const inter=await loadCSV("lists2/index.csv");
-  const counts=await loadClearCounts();
-  const make=(data,folder,id)=>{
-    const c=document.getElementById(id); c.innerHTML="";
-    data.forEach(i=>{
-      const b=document.createElement("button");
-      b.className="btn-blue";
-      b.innerText=i.title+(counts[i.title]?`（${counts[i.title]}回クリア）`:"");
-      b.onclick=()=>startStudy(folder,i.title,i.file);
-      c.appendChild(b);
-    });
-  };
-  make(basic,"lists","basicList");
-  make(inter,"lists2","intermediateList");
-  await updateStudyInfo();
-  await drawStudyChart();
-  show("listScreen");
-}
-
-async function startStudy(folder,t,file){
-  studyStartTime=Date.now();
-  currentList=await loadCSV(`${folder}/${file}`);
-  title=t; round=1; index=0; dontKnow=[];
-  order=[...currentList.keys()].sort(()=>Math.random()-0.5);
+async function startStudy(file){
+  list = await loadCSV(file);
+  order=[...list.keys()].sort(()=>Math.random()-0.5);
+  i=0;
+  startTime=Date.now();
   show("studyScreen");
-  nextQuestion();
+  next();
 }
 
-function nextQuestion(){
-  if(index>=order.length){
-    if(!dontKnow.length){
-      saveClearCount(title);
-      alert("すべて正解です！");
-      return endStudy(true);
-    }
-    currentList=dontKnow.map(i=>currentList[i]);
-    dontKnow=[]; round++; index=0;
-    order=[...currentList.keys()];
+function next(){
+  if(i>=order.length){
+    saveTime();
+    show("listScreen");
+    return;
   }
-  const it=currentList[order[index]];
-  questionWord.innerText=it.word;
+  const item=list[order[i]];
+  questionWord.innerText=item.word;
   answerMeaning.innerText="";
 }
 
-function markKnow(){ showAnswer(); setTimeout(()=>{index++;nextQuestion();},700); }
-function markDontKnow(){ dontKnow.push(order[index]); showAnswer(); setTimeout(()=>{index++;nextQuestion();},1200); }
-function showAnswer(){ answerMeaning.innerText=currentList[order[index]].meaning; }
+function markKnow(){ i++; next(); }
+function markDontKnow(){ i++; next(); }
 
-// ===== 音声 =====
-function speak(t){ if(!t) return; let u=new SpeechSynthesisUtterance(t); u.lang="en-US"; speechSynthesis.speak(u); }
-function speakQuestion(){ speak(questionWord.innerText); }
-function speakAnswer(){ speak(answerMeaning.innerText); }
-
-// ===== 画面 =====
-async function endStudy(auto){
-  if(studyStartTime){
-    await saveStudyTime(Math.floor((Date.now()-studyStartTime)/1000));
-    studyStartTime=null;
-  }
-  if(!auto && !confirm("学習を終了しますか？")) return;
-  loadAllLists();
+/* ================= Speech (FIXED) ================= */
+function speakWord(){
+  speak(questionWord.innerText,"en-US");
 }
+function speakMeaning(){
+  speak(answerMeaning.innerText,"ja-JP");
+}
+function speak(text,lang){
+  if(!text) return;
+  speechSynthesis.cancel();      // ← ★超重要
+  const u=new SpeechSynthesisUtterance(text);
+  u.lang=lang;
+  speechSynthesis.speak(u);
+}
+
+/* ================= Time ================= */
+async function saveTime(){
+  const sec=Math.floor((Date.now()-startTime)/1000);
+  const d=new Date().toISOString().slice(0,10);
+  const ref=db.collection("users").doc(userId);
+  await ref.set({
+    total:firebase.firestore.FieldValue.increment(sec),
+    [d]:firebase.firestore.FieldValue.increment(sec)
+  },{merge:true});
+  loadStats();
+}
+
+/* ================= Stats & Graph ================= */
+async function loadStats(){
+  const d=(await db.collection("users").doc(userId).get()).data();
+  if(!d) return;
+  todayTime.innerText="今日："+(d[new Date().toISOString().slice(0,10)]||0)+"秒";
+  totalTime.innerText="累計："+(d.total||0)+"秒";
+  drawGraph(d);
+}
+
+function drawGraph(data){
+  const c=graph.getContext("2d");
+  c.clearRect(0,0,graph.width,graph.height);
+  const days=Object.keys(data).filter(k=>k!=="total").sort();
+  days.forEach((d,i)=>{
+    c.fillRect(i*30,200-data[d]/10,20,data[d]/10);
+    c.fillText(d.slice(5),i*30,195);
+  });
+}
+
+/* ================= UI ================= */
 function show(id){
   document.querySelectorAll(".screen").forEach(s=>s.style.display="none");
   document.getElementById(id).style.display="block";
 }
 
-// 起動
-loadAllLists();
+/* ================= Init ================= */
+basicList.innerHTML='<button class="btn-blue" onclick="startStudy(\'lists/basic.csv\')">基本単語</button>';
+show("listScreen");
+loadStats();
 </script>
 </body>
 </html>

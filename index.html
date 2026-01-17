@@ -10,9 +10,7 @@ body{
   background:#fff5fb;
   padding:2vw;
 }
-
 .screen{ display:none; }
-
 .card{
   background:white;
   padding:3vw;
@@ -20,7 +18,6 @@ body{
   box-shadow:0 4px 10px rgba(0,0,0,0.08);
   margin-bottom:4vw;
 }
-
 button{
   padding:2.5vw 4vw;
   border-radius:20px;
@@ -28,26 +25,21 @@ button{
   font-size:4vw;
   margin:1vw;
 }
-
 .btn-blue{ background:#9bd8ff; }
 .btn-green{ background:#9be1a7; }
 .btn-pink{ background:#ff9bcd; }
 .btn-gray{ background:#dddddd; }
-
 .big{
   font-size:7vw;
   margin:3vw 0;
   text-align:center;
   cursor:pointer;
 }
-
 #wordImage{
   max-width:70%;
   display:none;
   margin:3vw auto;
-  cursor:pointer;
 }
-
 #infoBar{
   position:fixed;
   bottom:1.5vw;
@@ -56,23 +48,8 @@ button{
   border-radius:12px;
   padding:1.5vw 2vw;
   box-shadow:0 2px 6px rgba(0,0,0,0.15);
-  text-align:right;
 }
-
-#appName{
-  font-size:2.5vw;
-  color:#ff7eb8;
-}
-
-#statusText{
-  font-size:3vw;
-  color:#555;
-}
-
-@media (max-width:600px){
-  button{ font-size:5vw; }
-  .big{ font-size:9vw; }
-}
+#studyInfo{ font-size:3vw; color:#555; }
 </style>
 </head>
 
@@ -85,6 +62,9 @@ button{
 
   <h3>📕 中級</h3>
   <div id="intermediateList"></div>
+
+  <h3>📊 学習時間（日別）</h3>
+  <canvas id="studyChart" width="300" height="200"></canvas>
 </div>
 
 <!-- ===== 学習画面 ===== -->
@@ -99,139 +79,171 @@ button{
   <button class="btn-gray" onclick="endStudy()">終了</button>
 </div>
 
-<!-- ===== 右下情報 ===== -->
 <div id="infoBar">
-  <div id="appName">🌸 英単語暗記アプリ by Koji NIHEI 2026 🌸</div>
-  <div id="statusText"></div>
+  <div>🌸 英単語暗記アプリ by Koji NIHEI 2026 🌸</div>
+  <div id="studyInfo"></div>
 </div>
 
-<script>
-// ================= 共通CSV読み込み =================
-async function loadCSV(path){
-  const res = await fetch(path);
-  const text = await res.text();
-  const lines = text.trim().split("\n");
-  const headers = lines[0].split(",");
+<!-- Firebase CDN -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
-  return lines.slice(1).map(line=>{
-    const values=line.split(",");
-    let obj={};
-    headers.forEach((h,i)=>obj[h.trim()]=values[i]?.trim());
-    return obj;
+<script>
+// ===== Firebase 初期化 =====
+firebase.initializeApp({
+  apiKey: "AIzaSyAYEEHtYUdDylKlSwy4mX2S2mIK5Hs3vJA",
+  authDomain: "english-word-app-f7101.firebaseapp.com",
+  projectId: "english-word-app-f7101",
+});
+const db = firebase.firestore();
+
+// ===== userId =====
+let userId = localStorage.getItem("userId");
+if(!userId){
+  userId = crypto.randomUUID();
+  localStorage.setItem("userId", userId);
+}
+
+// ===== 共通 =====
+let studyStartTime = null;
+function getToday(){
+  return new Date().toISOString().slice(0,10);
+}
+function formatTime(sec){
+  const m=Math.floor(sec/60), h=Math.floor(m/60);
+  return h>0 ? `${h}時間${m%60}分` : `${m}分`;
+}
+
+// ===== CSV =====
+async function loadCSV(path){
+  const res=await fetch(path);
+  const lines=(await res.text()).trim().split("\n");
+  const h=lines[0].split(",");
+  return lines.slice(1).map(l=>{
+    const v=l.split(",");
+    let o={}; h.forEach((k,i)=>o[k]=v[i]); return o;
   });
 }
 
-// ================= リスト読み込み =================
+// ===== Firestore =====
+async function saveClearCount(name){
+  const ref=db.collection("users").doc(userId)
+    .collection("clearedLists").doc(name);
+  const s=await ref.get();
+  await ref.set({count:(s.exists?s.data().count:0)+1});
+}
+async function loadClearCounts(){
+  const s=await db.collection("users").doc(userId)
+    .collection("clearedLists").get();
+  let m={}; s.forEach(d=>m[d.id]=d.data().count); return m;
+}
+async function saveStudyTime(sec){
+  const d=getToday();
+  const ref=db.collection("users").doc(userId)
+    .collection("studyTime").doc(d);
+  const s=await ref.get();
+  await ref.set({seconds:(s.exists?s.data().seconds:0)+sec});
+}
+async function loadStudyTimes(){
+  const s=await db.collection("users").doc(userId)
+    .collection("studyTime").get();
+  let m={}; s.forEach(d=>m[d.id]=d.data().seconds); return m;
+}
+
+// ===== 表示 =====
+async function updateStudyInfo(){
+  const d=await loadStudyTimes();
+  const t=d[getToday()]||0;
+  const sum=Object.values(d).reduce((a,b)=>a+b,0);
+  document.getElementById("studyInfo").innerText=
+    `📊 今日：${formatTime(t)} / 累計：${formatTime(sum)}`;
+}
+async function drawStudyChart(){
+  const d=await loadStudyTimes();
+  const e=Object.entries(d).sort().slice(-7);
+  const c=document.getElementById("studyChart");
+  const x=c.getContext("2d");
+  x.clearRect(0,0,c.width,c.height);
+  if(!e.length) return;
+  const v=e.map(i=>Math.floor(i[1]/60));
+  const m=Math.max(...v,1);
+  const p=30,w=c.width-p*2,h=c.height-p*2;
+  v.forEach((val,i)=>{
+    const bh=val/m*h;
+    x.fillStyle="#ff9bcd";
+    x.fillRect(p+i*w/v.length,h+p-bh,w/v.length*0.6,bh);
+    x.fillStyle="#555";
+    x.fillText(e[i][0].slice(5),p+i*w/v.length+10,c.height-5);
+  });
+}
+
+// ===== 学習 =====
+let currentList=[],order=[],index=0,dontKnow=[],title="";
 async function loadAllLists(){
-  const basic = await loadCSV("lists/index.csv");
-  const inter = await loadCSV("lists2/index.csv");
-
-  createButtons(basic,"lists","basicList");
-  createButtons(inter,"lists2","intermediateList");
-
+  const basic=await loadCSV("lists/index.csv");
+  const inter=await loadCSV("lists2/index.csv");
+  const counts=await loadClearCounts();
+  function make(data,folder,id){
+    const c=document.getElementById(id); c.innerHTML="";
+    data.forEach(i=>{
+      const b=document.createElement("button");
+      b.className="btn-blue";
+      b.innerText=i.title+(counts[i.title]?` ✅ ${counts[i.title]}回クリア`:"");
+      b.onclick=()=>startStudy(folder,i.title,i.file);
+      c.appendChild(b);
+    });
+  }
+  make(basic,"lists","basicList");
+  make(inter,"lists2","intermediateList");
+  await updateStudyInfo();
+  await drawStudyChart();
   show("listScreen");
 }
-
-function createButtons(data,folder,containerId){
-  const c=document.getElementById(containerId);
-  c.innerHTML="";
-  data.forEach(item=>{
-    const b=document.createElement("button");
-    b.className="btn-blue";
-    b.innerText=item.title;
-    b.onclick=()=>startStudy(folder,item.title,item.file);
-    c.appendChild(b);
-  });
-}
-
-// ================= 学習ロジック =================
-let currentList=[], order=[], index=0, dontKnow=[];
-let title="", round=1;
-
-async function startStudy(folder,titleName,file){
-  const csv=await loadCSV(`${folder}/${file}`);
-  currentList=csv;
-  title=titleName;
-  round=1; index=0; dontKnow=[];
-  resetOrder();
-  show("studyScreen");
-  nextQuestion();
-}
-
-function resetOrder(){
+async function startStudy(folder,t,file){
+  studyStartTime=Date.now();
+  currentList=await loadCSV(`${folder}/${file}`);
+  title=t; index=0; dontKnow=[];
   order=[...currentList.keys()].sort(()=>Math.random()-0.5);
-  index=0;
+  show("studyScreen"); nextQuestion();
 }
-
-function nextQuestion(){
+async function nextQuestion(){
   if(index>=order.length){
-    if(dontKnow.length===0){
+    if(!dontKnow.length){
+      await saveClearCount(title);
       alert("すべて正解です！");
-      loadAllLists();
-      return;
+      return loadAllLists();
     }
     currentList=dontKnow.map(i=>currentList[i]);
-    dontKnow=[];
-    round++;
-    resetOrder();
+    dontKnow=[]; index=0;
   }
+  const it=currentList[order[index]];
+  questionWord.innerText=it.word;
+  answerMeaning.innerText="";
+}
+function markKnow(){ showAnswer(); setTimeout(()=>{index++;nextQuestion();},800); }
+function markDontKnow(){ dontKnow.push(order[index]); showAnswer(); setTimeout(()=>{index++;nextQuestion();},1500); }
+function showAnswer(){ answerMeaning.innerText=currentList[order[index]].meaning; }
 
-  const item=currentList[order[index]];
-  document.getElementById("questionWord").innerText=item.word;
-  document.getElementById("answerMeaning").innerText="";
-  document.getElementById("statusText").innerText=`${title}（${round}巡目）`;
+// ===== 音声 =====
+function speak(t){ if(!t) return; let u=new SpeechSynthesisUtterance(t); u.lang="en-US"; speechSynthesis.speak(u); }
+function speakQuestion(){ speak(questionWord.innerText); }
+function speakAnswer(){ speak(answerMeaning.innerText); }
 
-  const img=document.getElementById("wordImage");
-  if(item.image){
-    img.src="images/"+item.image;
-    img.style.display="block";
-  }else{
-    img.style.display="none";
+// ===== 終了 =====
+async function endStudy(){
+  if(!confirm("学習を終了しますか？")) return;
+  if(studyStartTime){
+    await saveStudyTime(Math.floor((Date.now()-studyStartTime)/1000));
+    studyStartTime=null;
   }
+  loadAllLists();
 }
-
-// ================= 回答 =================
-function markKnow(){
-  showAnswer();
-  setTimeout(()=>{ index++; nextQuestion(); },800);
-}
-
-function markDontKnow(){
-  dontKnow.push(order[index]);
-  showAnswer();
-  setTimeout(()=>{ index++; nextQuestion(); },1800);
-}
-
-function showAnswer(){
-  document.getElementById("answerMeaning").innerText=
-    currentList[order[index]].meaning;
-  speakAnswer();
-}
-
-// ================= 音声 =================
-function speakQuestion(){
-  speak(document.getElementById("questionWord").innerText);
-}
-function speakAnswer(){
-  speak(document.getElementById("answerMeaning").innerText);
-}
-function speak(text){
-  if(!text) return;
-  const u=new SpeechSynthesisUtterance(text);
-  u.lang="en-US";
-  speechSynthesis.speak(u);
-}
-
-// ================= 画面制御 =================
 function show(id){
   document.querySelectorAll(".screen").forEach(s=>s.style.display="none");
   document.getElementById(id).style.display="block";
 }
-function endStudy(){
-  if(confirm("学習を終了しますか？")) loadAllLists();
-}
 
-// 初期起動
+// 起動
 loadAllLists();
 </script>
 </body>

@@ -232,24 +232,10 @@ function markDontKnow(){ dontKnow.push(order[index]); showAnswer(); setTimeout((
 function showAnswer(){ answerMeaning.innerText=currentList[order[index]].meaning; }
 
 // ===== 音声 =====
-function speak(text, lang){
-  if(!text) return;
+function speak(t){ if(!t) return; let u=new SpeechSynthesisUtterance(t); u.lang="en-US"; speechSynthesis.speak(u); }
+function speakQuestion(){ speak(questionWord.innerText); }
+function speakAnswer(){ speak(answerMeaning.innerText); }
 
-  // ★ これが無いと無音になることがある（超重要）
-  speechSynthesis.cancel();
-
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = lang;
-  speechSynthesis.speak(u);
-}
-
-function speakQuestion(){
-  speak(document.getElementById("questionWord").innerText, "en-US");
-}
-
-function speakAnswer(){
-  speak(document.getElementById("answerMeaning").innerText, "ja-JP");
-}
 // ===== 画面 =====
 async function endStudy(auto){
   if(studyStartTime){

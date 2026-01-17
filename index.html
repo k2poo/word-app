@@ -47,7 +47,6 @@ button{
   background:rgba(255,255,255,0.9);
   border-radius:12px;
   padding:1.5vw 2vw;
-  box-shadow:0 2px 6px rgba(0,0,0,0.15);
 }
 #studyInfo{ font-size:3vw; color:#555; }
 </style>
@@ -55,7 +54,6 @@ button{
 
 <body>
 
-<!-- ===== リスト選択 ===== -->
 <div id="listScreen" class="screen card">
   <h3>📘 基本</h3>
   <div id="basicList"></div>
@@ -67,10 +65,8 @@ button{
   <canvas id="studyChart" width="300" height="200"></canvas>
 </div>
 
-<!-- ===== 学習画面 ===== -->
 <div id="studyScreen" class="screen card">
   <div class="big" id="questionWord" onclick="speakQuestion()"></div>
-  <img id="wordImage" onclick="speakQuestion()">
   <div class="big" id="answerMeaning" style="color:#0077ff;"
        onclick="speakAnswer()"></div>
 
@@ -84,12 +80,10 @@ button{
   <div id="studyInfo"></div>
 </div>
 
-<!-- Firebase CDN -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
-// ===== Firebase 初期化 =====
 firebase.initializeApp({
   apiKey: "AIzaSyAYEEHtYUdDylKlSwy4mX2S2mIK5Hs3vJA",
   authDomain: "english-word-app-f7101.firebaseapp.com",
@@ -97,67 +91,48 @@ firebase.initializeApp({
 });
 const db = firebase.firestore();
 
-// ===== userId =====
-let userId = localStorage.getItem("userId");
-if(!userId){
-  userId = crypto.randomUUID();
-  localStorage.setItem("userId", userId);
-}
+let userId = localStorage.getItem("userId") || crypto.randomUUID();
+localStorage.setItem("userId", userId);
 
-// ===== 共通 =====
 let studyStartTime = null;
-function getToday(){
-  return new Date().toISOString().slice(0,10);
-}
-function formatTime(sec){
-  const m=Math.floor(sec/60), h=Math.floor(m/60);
-  return h>0 ? `${h}時間${m%60}分` : `${m}分`;
-}
+const today = () => new Date().toISOString().slice(0,10);
 
-// ===== CSV =====
 async function loadCSV(path){
-  const res=await fetch(path);
-  const lines=(await res.text()).trim().split("\n");
-  const h=lines[0].split(",");
+  const res = await fetch(path);
+  const lines = (await res.text()).trim().split("\n");
+  const h = lines[0].split(",");
   return lines.slice(1).map(l=>{
     const v=l.split(",");
     let o={}; h.forEach((k,i)=>o[k]=v[i]); return o;
   });
 }
 
-// ===== Firestore =====
 async function saveClearCount(name){
   const ref=db.collection("users").doc(userId)
     .collection("clearedLists").doc(name);
   const s=await ref.get();
   await ref.set({count:(s.exists?s.data().count:0)+1});
 }
-async function loadClearCounts(){
-  const s=await db.collection("users").doc(userId)
-    .collection("clearedLists").get();
-  let m={}; s.forEach(d=>m[d.id]=d.data().count); return m;
-}
+
 async function saveStudyTime(sec){
-  const d=getToday();
   const ref=db.collection("users").doc(userId)
-    .collection("studyTime").doc(d);
+    .collection("studyTime").doc(today());
   const s=await ref.get();
   await ref.set({seconds:(s.exists?s.data().seconds:0)+sec});
 }
+
 async function loadStudyTimes(){
   const s=await db.collection("users").doc(userId)
     .collection("studyTime").get();
   let m={}; s.forEach(d=>m[d.id]=d.data().seconds); return m;
 }
 
-// ===== 表示 =====
 async function updateStudyInfo(){
   const d=await loadStudyTimes();
-  const t=d[getToday()]||0;
-  const sum=Object.values(d).reduce((a,b)=>a+b,0);
   document.getElementById("studyInfo").innerText=
-    `📊 今日：${formatTime(t)} / 累計：${formatTime(sum)}`;
+    `📊 今日：${Math.floor((d[today()]||0)/60)}分`;
 }
+
 async function drawStudyChart(){
   const d=await loadStudyTimes();
   const e=Object.entries(d).sort().slice(-7);
@@ -167,28 +142,23 @@ async function drawStudyChart(){
   if(!e.length) return;
   const v=e.map(i=>Math.floor(i[1]/60));
   const m=Math.max(...v,1);
-  const p=30,w=c.width-p*2,h=c.height-p*2;
   v.forEach((val,i)=>{
-    const bh=val/m*h;
     x.fillStyle="#ff9bcd";
-    x.fillRect(p+i*w/v.length,h+p-bh,w/v.length*0.6,bh);
-    x.fillStyle="#555";
-    x.fillText(e[i][0].slice(5),p+i*w/v.length+10,c.height-5);
+    x.fillRect(30+i*35,170-val/m*120,20,val/m*120);
   });
 }
 
-// ===== 学習 =====
 let currentList=[],order=[],index=0,dontKnow=[],title="";
+
 async function loadAllLists(){
   const basic=await loadCSV("lists/index.csv");
   const inter=await loadCSV("lists2/index.csv");
-  const counts=await loadClearCounts();
   function make(data,folder,id){
     const c=document.getElementById(id); c.innerHTML="";
     data.forEach(i=>{
       const b=document.createElement("button");
       b.className="btn-blue";
-      b.innerText=i.title+(counts[i.title]?` ✅ ${counts[i.title]}回クリア`:"");
+      b.innerText=i.title;
       b.onclick=()=>startStudy(folder,i.title,i.file);
       c.appendChild(b);
     });
@@ -199,51 +169,60 @@ async function loadAllLists(){
   await drawStudyChart();
   show("listScreen");
 }
+
 async function startStudy(folder,t,file){
   studyStartTime=Date.now();
   currentList=await loadCSV(`${folder}/${file}`);
-  title=t; index=0; dontKnow=[];
-  order=[...currentList.keys()].sort(()=>Math.random()-0.5);
-  show("studyScreen"); nextQuestion();
+  title=t;
+  index=0;
+  dontKnow=[];
+  order=[...Array(currentList.length).keys()].sort(()=>Math.random()-0.5);
+  show("studyScreen");
+  nextQuestion();
 }
-async function nextQuestion(){
+
+function nextQuestion(){
   if(index>=order.length){
     if(!dontKnow.length){
-      await saveClearCount(title);
-      alert("すべて正解です！");
+      saveClearCount(title);
+      alert("すべて正解！");
       return loadAllLists();
     }
     currentList=dontKnow.map(i=>currentList[i]);
-    dontKnow=[]; index=0;
+    dontKnow=[];
+    index=0;
+    order=[...Array(currentList.length).keys()];
   }
   const it=currentList[order[index]];
   questionWord.innerText=it.word;
   answerMeaning.innerText="";
 }
-function markKnow(){ showAnswer(); setTimeout(()=>{index++;nextQuestion();},800); }
-function markDontKnow(){ dontKnow.push(order[index]); showAnswer(); setTimeout(()=>{index++;nextQuestion();},1500); }
+
+function markKnow(){ showAnswer(); setTimeout(()=>{index++;nextQuestion();},600); }
+function markDontKnow(){ dontKnow.push(order[index]); showAnswer(); setTimeout(()=>{index++;nextQuestion();},1000); }
 function showAnswer(){ answerMeaning.innerText=currentList[order[index]].meaning; }
 
-// ===== 音声 =====
-function speak(t){ if(!t) return; let u=new SpeechSynthesisUtterance(t); u.lang="en-US"; speechSynthesis.speak(u); }
+function speak(t){
+  if(!t) return;
+  let u=new SpeechSynthesisUtterance(t);
+  u.lang="en-US";
+  speechSynthesis.speak(u);
+}
 function speakQuestion(){ speak(questionWord.innerText); }
 function speakAnswer(){ speak(answerMeaning.innerText); }
 
-// ===== 終了 =====
 async function endStudy(){
-  if(!confirm("学習を終了しますか？")) return;
   if(studyStartTime){
     await saveStudyTime(Math.floor((Date.now()-studyStartTime)/1000));
-    studyStartTime=null;
   }
   loadAllLists();
 }
+
 function show(id){
   document.querySelectorAll(".screen").forEach(s=>s.style.display="none");
   document.getElementById(id).style.display="block";
 }
 
-// 起動
 loadAllLists();
 </script>
 </body>

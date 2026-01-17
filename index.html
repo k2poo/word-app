@@ -239,65 +239,27 @@ function markDontKnow(){
 
 function showAnswer(){ answerMeaning.innerText=currentList[order[index]].meaning; }
 
-// ===== 音声処理（発音改善の強化版） =====
-let voices = [];
-function loadVoices() {
-  voices = speechSynthesis.getVoices();
-}
-// ページ読み込み時に実行
-loadVoices();
-// Chrome/Android等は後から読み込まれるためイベント監視
-if (speechSynthesis.onvoiceschanged !== undefined) {
-  speechSynthesis.onvoiceschanged = loadVoices;
-}
+// ===== 音声処理（シンプル版） =====
+// うまくいっていた時のコードをベースに、言語指定だけ切り替えるようにしました。
+// langを指定するだけで、ブラウザが最適な声を自動選択します。
 
-// langIsEnglish: true=英語, false=日本語
-function speak(t, langIsEnglish){ 
-  if(!t) return; 
-  speechSynthesis.cancel(); 
+function speak(text, lang){ 
+  if(!text) return; 
+  speechSynthesis.cancel(); // 連続再生防止
 
-  // 声のリストが空なら、このタイミングで再取得を試みる
-  if(voices.length === 0) voices = speechSynthesis.getVoices();
-
-  let u = new SpeechSynthesisUtterance(t);
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = lang; // ここで "en-US" か "ja-JP" を指定するだけにする
   u.rate = 1.0; 
   u.pitch = 1.0;
-
-  if (langIsEnglish) {
-    // === 英語ボイスの強力な検索 ===
-    u.lang = "en-US"; // 基本指定
-
-    // 優先順位: 
-    // 1. Android/Chromeの「Google US English」
-    // 2. iOSの「Samantha」
-    // 3. 言語コードが「en-US」(ハイフン)
-    // 4. 言語コードが「en_US」(アンダーバー) ※一部Android対策
-    // 5. とにかく「en」で始まるもの
-    const enVoice = voices.find(v => v.name.includes("Google US English")) 
-                 || voices.find(v => v.name.includes("Samantha"))
-                 || voices.find(v => v.lang === 'en-US') 
-                 || voices.find(v => v.lang === 'en_US')
-                 || voices.find(v => v.lang.toLowerCase().startsWith('en'));
-    
-    // 見つかった場合のみセット。セットしないとデフォルト(日本語)になる可能性があるため重要
-    if(enVoice) u.voice = enVoice;
-
-  } else {
-    // === 日本語ボイスの検索 ===
-    u.lang = "ja-JP";
-    const jaVoice = voices.find(v => v.lang === 'ja-JP') 
-                 || voices.find(v => v.lang === 'ja_JP')
-                 || voices.find(v => v.lang.toLowerCase().startsWith('ja'));
-    if(jaVoice) u.voice = jaVoice;
-  }
 
   speechSynthesis.speak(u); 
 }
 
-// 質問（英単語）は英語モード(true)
-function speakQuestion(){ speak(questionWord.innerText, true); }
-// 答え（意味）は日本語モード(false)
-function speakAnswer(){ speak(answerMeaning.innerText, false); }
+// 質問（英単語）は英語設定で読む
+function speakQuestion(){ speak(questionWord.innerText, "en-US"); }
+
+// 答え（意味）は日本語設定で読む
+function speakAnswer(){ speak(answerMeaning.innerText, "ja-JP"); }
 
 // ===== 画面 =====
 async function endStudy(auto){

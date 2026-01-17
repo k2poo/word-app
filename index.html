@@ -224,67 +224,34 @@ function nextQuestion(){
   answerMeaning.innerText="";
 }
 
-// ★★★ ボタンクリック時の動作（答えを読む） ★★★
+// ★★★ 修正箇所: ボタンクリック時に英単語（Question）を再生する ★★★
 function markKnow(){ 
   showAnswer(); 
-  speakAnswer(); 
+  speakQuestion(); // 英語の発音を聞くために英単語を再生
   setTimeout(()=>{index++;nextQuestion();},700); 
 }
 function markDontKnow(){ 
   dontKnow.push(order[index]); 
   showAnswer(); 
-  speakAnswer(); 
+  speakQuestion(); // 英語の発音を聞くために英単語を再生
   setTimeout(()=>{index++;nextQuestion();},1200); 
 }
 
 function showAnswer(){ answerMeaning.innerText=currentList[order[index]].meaning; }
 
-// ===== 音声処理（確実なボイス指定版） =====
-// ここで英語と日本語の「声そのもの」を確保します
-let englishVoice = null;
-let japaneseVoice = null;
-
-function loadVoices() {
-  const voices = speechSynthesis.getVoices();
-  // 英語の声を探す（'en-US' または 'en' で始まる声）
-  englishVoice = voices.find(v => v.lang.includes('en-US')) || voices.find(v => v.lang.startsWith('en'));
-  // 日本語の声を探す
-  japaneseVoice = voices.find(v => v.lang.includes('ja-JP')) || voices.find(v => v.lang.startsWith('ja'));
-}
-
-// 読み込み完了時に声を取得
-loadVoices();
-if (speechSynthesis.onvoiceschanged !== undefined) {
-  speechSynthesis.onvoiceschanged = loadVoices;
-}
-
-function speak(text, isEnglish){ 
-  if(!text) return; 
+// ===== 音声（シンプル版） =====
+// 過去の成功コードをベースにしたシンプルな記述
+function speak(t){ 
+  if(!t) return; 
   speechSynthesis.cancel(); 
 
-  // もし声がまだロードできていなければ、再生直前に再取得を試みる
-  if(!englishVoice || !japaneseVoice) loadVoices();
-
-  const u = new SpeechSynthesisUtterance(text);
-  
-  if(isEnglish) {
-    u.lang = "en-US";
-    if(englishVoice) u.voice = englishVoice; // ★英語の声を強制セット
-  } else {
-    u.lang = "ja-JP";
-    if(japaneseVoice) u.voice = japaneseVoice; // ★日本語の声を強制セット
-  }
-  
-  u.rate = 1.0; 
+  const u = new SpeechSynthesisUtterance(t);
+  u.lang = "en-US"; // シンプルに英語を指定
   speechSynthesis.speak(u); 
 }
 
-// 質問（英単語）→ 英語 (true)
-function speakQuestion(){ speak(questionWord.innerText, true); }
-
-// 答え（意味）→ 日本語 (false)
-function speakAnswer(){ speak(answerMeaning.innerText, false); }
-
+function speakQuestion(){ speak(questionWord.innerText); }
+function speakAnswer(){ speak(answerMeaning.innerText); }
 
 // ===== 画面 =====
 async function endStudy(auto){

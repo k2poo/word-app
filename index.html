@@ -224,56 +224,70 @@ function nextQuestion(){
   answerMeaning.innerText="";
 }
 
-// ★★★ 修正箇所: 答えを表示してから、答えの音声を再生する ★★★
+// ボタンクリック時の動作
 function markKnow(){ 
-  showAnswer(); // 先に答えを表示（テキストがないと読めないため）
+  showAnswer(); // 答えを表示
   speakAnswer(); // 答え（意味）を再生
   setTimeout(()=>{index++;nextQuestion();},700); 
 }
 function markDontKnow(){ 
   dontKnow.push(order[index]); 
-  showAnswer(); // 先に答えを表示
+  showAnswer(); // 答えを表示
   speakAnswer(); // 答え（意味）を再生
   setTimeout(()=>{index++;nextQuestion();},1200); 
 }
 
 function showAnswer(){ answerMeaning.innerText=currentList[order[index]].meaning; }
 
-// ===== 音声処理（日本語対応修正） =====
+// ===== 音声処理（発音改善版） =====
 let voices = [];
 function loadVoices() {
   voices = speechSynthesis.getVoices();
 }
-// ページ読み込み時
+// ページ読み込み時に声のリストを取得
 loadVoices();
+// Chrome等で声のリストが後から読み込まれた場合に対応
 if (speechSynthesis.onvoiceschanged !== undefined) {
   speechSynthesis.onvoiceschanged = loadVoices;
 }
 
-// 言語指定（lang）を追加。デフォルトは英語（en-US）
-function speak(t, lang="en-US"){ 
+// langIsEnglish: trueなら英語ボイスを強制検索、falseなら日本語ボイス優先
+function speak(t, langIsEnglish){ 
   if(!t) return; 
   speechSynthesis.cancel(); 
 
+  // 声リストがまだ空なら再取得を試みる
+  if(voices.length === 0) voices = speechSynthesis.getVoices();
+
   let u = new SpeechSynthesisUtterance(t);
-  u.lang = lang; 
   u.rate = 1.0; 
   u.pitch = 1.0;
 
-  // 英語の場合のみ、明示的に英語ボイスを探してセットする
-  if(lang === "en-US"){
-    const enVoice = voices.find(v => v.lang === 'en-US') || voices.find(v => v.lang.startsWith('en'));
-    if(enVoice) {
-      u.voice = enVoice;
-    }
+  if (langIsEnglish) {
+    // 英語ネイティブの発音にする処理
+    u.lang = "en-US";
+    // 優先度: Google US English > その他 en-US > その他 en系
+    const enVoice = voices.find(v => v.name.includes("Google US English")) 
+                 || voices.find(v => v.lang === 'en-US') 
+                 || voices.find(v => v.lang.startsWith('en'));
+    // 見つかったらセット（セットしないとOSデフォルト＝日本語になる場合がある）
+    if(enVoice) u.voice = enVoice;
+
+  } else {
+    // 日本語の発音にする処理
+    u.lang = "ja-JP";
+    const jaVoice = voices.find(v => v.lang === 'ja-JP') 
+                 || voices.find(v => v.lang.startsWith('ja'));
+    if(jaVoice) u.voice = jaVoice;
   }
-  // 日本語の場合はブラウザのデフォルトに任せる（通常はそのままでうまくいくため）
 
   speechSynthesis.speak(u); 
 }
 
-function speakQuestion(){ speak(questionWord.innerText, "en-US"); }
-function speakAnswer(){ speak(answerMeaning.innerText, "ja-JP"); } // 答えは日本語として再生
+// 質問（英単語）は英語ボイス（true）
+function speakQuestion(){ speak(questionWord.innerText, true); }
+// 答え（意味）は日本語ボイス（false）
+function speakAnswer(){ speak(answerMeaning.innerText, false); }
 
 // ===== 画面 =====
 async function endStudy(auto){

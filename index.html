@@ -44,8 +44,6 @@ button:active{ transform: scale(0.96); opacity: 0.8; }
 .btn-green{ background:#9be1a7; color:#155724; }
 .btn-pink{ background:#ff9bcd; color:#721c24; }
 .btn-gray{ background:#dddddd; color:#333; }
-
-/* ゲーム用の選択肢ボタン */
 .btn-choice{
   width: 100%;
   margin: 2vw 0;
@@ -108,7 +106,6 @@ button:active{ transform: scale(0.96); opacity: 0.8; }
   box-shadow: 0 2px 5px rgba(0,0,0,0.15);
 }
 
-/* スコア表示 */
 .score-board {
   text-align: center;
   font-size: 6vw;
@@ -116,12 +113,14 @@ button:active{ transform: scale(0.96); opacity: 0.8; }
   font-weight: bold;
   margin-bottom: 2vw;
 }
-
-/* リストがない時のメッセージ */
-.no-list-msg {
-    text-align: center;
-    color: #999;
-    padding: 5vw;
+.error-msg {
+    color: red;
+    font-size: 3vw;
+    background: #ffe6e6;
+    padding: 2vw;
+    border-radius: 8px;
+    margin: 2vw 0;
+    white-space: pre-wrap;
 }
 </style>
 </head>
@@ -142,14 +141,15 @@ button:active{ transform: scale(0.96); opacity: 0.8; }
     <div style="text-align:center; font-size:3.5vw; color:#888; margin-bottom:2vw;">
       モードを選んでから<br>下のリストを押してください
     </div>
+    <div id="debugArea"></div>
   </div>
 
   <div class="card">
     <h3>📘 基本コース</h3>
-    <div id="basicList" style="text-align:center;"></div>
+    <div id="basicList" style="text-align:center;">読込中...</div>
 
     <h3>📕 中級コース</h3>
-    <div id="intermediateList" style="text-align:center;"></div>
+    <div id="intermediateList" style="text-align:center;">読込中...</div>
   </div>
 
   <div class="card">
@@ -159,7 +159,8 @@ button:active{ transform: scale(0.96); opacity: 0.8; }
     </div>
   </div>
   
-  <div style="height:15vw;"></div> </div>
+  <div style="height:15vw;"></div>
+</div>
 
 <div id="studyScreen" class="screen card" style="min-height: 80vh;">
   <div style="text-align:center;color:#888;margin-bottom:4vw;">⚡ 速攻モード</div>
@@ -197,52 +198,6 @@ button:active{ transform: scale(0.96); opacity: 0.8; }
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
-// ===== ★ここに単語データを直接書き込みます（CSV不要）★ =====
-// 好きなだけリストを追加できます
-const builtInLists = {
-  basic: [
-    {
-      title: "基本単語 Part 1",
-      words: [
-        {word: "Apple", meaning: "りんご"},
-        {word: "Dog", meaning: "犬"},
-        {word: "Cat", meaning: "猫"},
-        {word: "Book", meaning: "本"},
-        {word: "Desk", meaning: "机"},
-        {word: "Chair", meaning: "椅子"},
-        {word: "Run", meaning: "走る"},
-        {word: "Eat", meaning: "食べる"},
-        {word: "Study", meaning: "勉強する"},
-        {word: "Play", meaning: "遊ぶ"}
-      ]
-    },
-    {
-      title: "挨拶・日常",
-      words: [
-        {word: "Hello", meaning: "こんにちは"},
-        {word: "Good morning", meaning: "おはよう"},
-        {word: "Thank you", meaning: "ありがとう"},
-        {word: "Sorry", meaning: "ごめんなさい"},
-        {word: "Yes", meaning: "はい"},
-        {word: "No", meaning: "いいえ"}
-      ]
-    }
-  ],
-  intermediate: [
-    {
-      title: "中級単語 Part 1",
-      words: [
-        {word: "Understand", meaning: "理解する"},
-        {word: "Difficult", meaning: "難しい"},
-        {word: "Important", meaning: "重要な"},
-        {word: "Beautiful", meaning: "美しい"},
-        {word: "Experience", meaning: "経験"},
-        {word: "Environment", meaning: "環境"}
-      ]
-    }
-  ]
-};
-
 // ===== Firebase 初期化 =====
 firebase.initializeApp({
   apiKey: "AIzaSyAYEEHtYUdDylKlSwy4mX2S2mIK5Hs3vJA",
@@ -269,6 +224,38 @@ const formatTime = sec => {
   const h = Math.floor(m/60);
   return h ? `${h}時間${m%60}分` : `${m}分`;
 };
+
+// ===== CSV読み込み（診断機能付き） =====
+async function loadCSV(path){
+  try {
+    // キャッシュ対策で時間を付与
+    const res = await fetch(path + "?t=" + Date.now());
+    
+    if (!res.ok) {
+        throw new Error(`ファイルが見つかりません (${res.status})`);
+    }
+
+    let text = await res.text();
+    text = text.replace(/^\uFEFF/, ""); // BOM削除
+    const lines = text.trim().split("\n");
+    
+    if(lines.length < 2) return []; 
+
+    const headers = lines[0].split(",").map(h=>h.trim());
+    return lines.slice(1).map(l=>{
+      const v=l.split(",");
+      let o={};
+      headers.forEach((h,i)=>o[h]=v[i]?v[i].trim():"");
+      return o;
+    });
+  } catch(e) {
+    console.error(`Load Error: ${path}`, e);
+    // エラーを画面に表示してユーザーに知らせる
+    const debug = document.getElementById("debugArea");
+    debug.innerHTML += `<div class="error-msg">⚠️ エラー: ${path} を読み込めませんでした。<br>フォルダ構成やファイル名を確認してください。</div>`;
+    return null;
+  }
+}
 
 // ===== Firestore =====
 async function saveClearCount(title){
@@ -330,33 +317,41 @@ function setMode(mode){
   document.getElementById('modeGame').className = mode === 'game' ? 'mode-option mode-active' : 'mode-option';
 }
 
-// ===== リスト読込（内蔵データ使用） =====
+// ===== リスト読込（ファイルから） =====
 async function loadAllLists(){
+  // エラー表示をリセット
+  document.getElementById("debugArea").innerHTML = "";
+
+  const basic = await loadCSV("lists/index.csv");
+  const inter = await loadCSV("lists2/index.csv");
   const counts = await loadClearCounts();
   
-  const make=(listData, id)=>{
+  const make=(data, folder, id)=>{
     const c=document.getElementById(id);
     c.innerHTML="";
-    if(!listData || listData.length === 0){
-        c.innerHTML = "<div class='no-list-msg'>リストがありません</div>";
+    
+    if(!data){
+        c.innerHTML = "<div style='color:red'>読み込み失敗</div>";
         return;
     }
-    listData.forEach(item => {
+    if(data.length === 0) {
+        c.innerHTML = "<div style='color:#ccc'>リストが空です</div>";
+        return;
+    }
+
+    data.forEach(i=>{
       const b=document.createElement("button");
       b.className="btn-blue";
-      b.innerText = item.title + (counts[item.title]?`（${counts[item.title]}回クリア）`:"");
+      const title = i.title || "No Title";
+      b.innerText = title + (counts[title]?`（${counts[title]}回クリア）`:"");
       
-      // ボタンを押した時の動作
-      b.onclick = () => {
-         // そのリストの単語データをセットして開始
-         startSession(item.title, item.words);
-      };
+      b.onclick = () => startSession(folder, title, i.file);
       c.appendChild(b);
     });
   };
   
-  make(builtInLists.basic, "basicList");
-  make(builtInLists.intermediate, "intermediateList");
+  make(basic, "lists", "basicList");
+  make(inter, "lists2", "intermediateList");
   
   await updateStudyInfo();
   await drawStudyChart();
@@ -364,10 +359,15 @@ async function loadAllLists(){
 }
 
 // ===== セッション開始 =====
-function startSession(title, words){
+async function startSession(folder, title, file){
   studyStartTime = Date.now();
-  // データをディープコピーして使う
-  currentList = JSON.parse(JSON.stringify(words));
+  // 該当のCSVを読み込む
+  currentList = await loadCSV(`${folder}/${file}`);
+  
+  if(!currentList || currentList.length === 0){
+    alert("この単語リストの読み込みに失敗しました。\nファイル名や中身を確認してください。");
+    return;
+  }
   
   if(appMode === 'study'){
     startStudyMode(title);

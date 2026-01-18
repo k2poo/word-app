@@ -433,7 +433,7 @@ async function startSession(folder, title, file, directData){
 }
 
 // ============================================
-// ⚡ 速攻モード
+// ⚡ 速攻モード (★meaningを再生するよう修正★)
 // ============================================
 let studyOrder=[], studyIndex=0, dontKnow=[], studyTitle="", round=1;
 
@@ -458,15 +458,16 @@ function nextQuestion(){
   document.getElementById("questionWord").innerText=it.word;
   document.getElementById("answerMeaning").innerText="";
 }
-// ★速攻モード修正: meaningを読み上げる
 function markKnow(){ 
   showAnswer(); 
+  // ここを meaning に変更
   forceSpeak(currentList[studyOrder[studyIndex]].meaning);
   setTimeout(()=>{studyIndex++;nextQuestion();},700); 
 }
 function markDontKnow(){ 
   dontKnow.push(studyOrder[studyIndex]); 
   showAnswer();
+  // ここを meaning に変更
   forceSpeak(currentList[studyOrder[studyIndex]].meaning);
   setTimeout(()=>{studyIndex++;nextQuestion();},1200); 
 }
@@ -537,7 +538,7 @@ function gameHint1(){
 function gameHint2(){ forceSpeak(currentCorrectItem.word); }
 function gameHint3(){ forceSpeak(currentCorrectItem.meaning); }
 
-// ===== ゲーム判定（連続再生ロジック変更） =====
+// ===== ゲーム判定（★正解の単語＝meaning に修正★） =====
 function checkGameAnswer(selected, correct){
   const area = document.getElementById("choicesArea");
   Array.from(area.children).forEach(b => b.disabled = true);
@@ -546,8 +547,9 @@ function checkGameAnswer(selected, correct){
   const isLastQuestion = (gameIndex >= gameOrder.length - 1);
   let audioSequence = [];
 
-  // ★正解音声（英単語）
-  const correctAudioText = correct.word;
+  // ★「正解の単語」は meaning 列の内容（ユーザー定義）
+  // 言語は自動判定に任せるため lang: null
+  const correctAudioText = correct.meaning;
 
   if(selected.word === correct.word){
     // === 正解 ===
@@ -556,14 +558,16 @@ function checkGameAnswer(selected, correct){
     feedback.innerText = "⭕ Excellent!";
     feedback.style.color = "green";
     
+    // 1. Phrase
     audioSequence.push({text: "Good job!", lang: "en-US"});
-    audioSequence.push({text: correctAudioText, lang: "en-US"}); // 正解の英単語
+    // 2. 正解の単語 (meaning)
+    audioSequence.push({text: correctAudioText, lang: null}); 
+    // 3. Next (最後以外)
     if(!isLastQuestion){
       audioSequence.push({text: "Let's go on to the next question.", lang: "en-US"});
     }
 
     playSequence(audioSequence, () => {
-      // 再生完了後のコールバックで次へ進む
       gameIndex++;
       nextGameQuestion();
     });
@@ -573,8 +577,11 @@ function checkGameAnswer(selected, correct){
     feedback.innerText = `❌ 正解: ${correct.meaning}`;
     feedback.style.color = "red";
     
+    // 1. Phrase
     audioSequence.push({text: "Try again. Let's try saying it in English.", lang: "en-US"});
-    audioSequence.push({text: correctAudioText, lang: "en-US"}); // 正解の英単語
+    // 2. 正解の単語 (meaning)
+    audioSequence.push({text: correctAudioText, lang: null}); 
+    // 3. Move on
     audioSequence.push({text: "Let's move on to the next question.", lang: "en-US"});
 
     playSequence(audioSequence, () => {
@@ -584,7 +591,7 @@ function checkGameAnswer(selected, correct){
   }
 }
 
-// ===== ★強化版：確実な連続再生システム =====
+// ===== 連続再生用 (onendリレー方式) =====
 function playSequence(list, onComplete){
   speechSynthesis.cancel();
   let index = 0;
@@ -601,14 +608,10 @@ function playSequence(list, onComplete){
     else u.lang = /[ぁ-んァ-ン一-龠]/.test(item.text) ? "ja-JP" : "en-US";
     u.rate = 1.0;
 
-    // 読み上げが終わったら次へ (onendイベントを使用)
     u.onend = function(){
       index++;
-      // 少し間隔を空ける
-      setTimeout(playNext, 300);
+      setTimeout(playNext, 500); // 0.5秒の間隔
     };
-    
-    // エラー時も次へ進める
     u.onerror = function(){
       index++;
       playNext();

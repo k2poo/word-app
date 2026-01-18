@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
 <style>
+/* === 基本スタイル (スマホ優先) === */
 body{
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   background:#fff5fb;
@@ -39,6 +40,7 @@ button{
   box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
 button:active{ transform: scale(0.96); opacity: 0.8; }
+button:disabled{ opacity: 0.5; cursor: default; transform: none; }
 
 .btn-blue{ background:#9bd8ff; color:#004085; width: 90%; text-align:left; }
 .btn-green{ background:#9be1a7; color:#155724; }
@@ -134,6 +136,11 @@ button:active{ transform: scale(0.96); opacity: 0.8; }
   font-weight: bold;
   box-shadow: 0 2px 5px rgba(0,0,0,0.15);
 }
+/* 切迫モードの色設定 */
+#modeUrgent.mode-active {
+  background: #ff6b6b;
+  color: white;
+}
 
 .score-board {
   text-align: center;
@@ -152,17 +159,18 @@ button:active{ transform: scale(0.96); opacity: 0.8; }
     margin-bottom: 2vw;
     border-radius: 8px;
 }
+
 /* =========================================
    デスクトップPC・タブレット向け (幅768px以上)
    ========================================= */
 @media (min-width: 768px) {
   /* 1. アプリ全体を中央寄せ＆幅制限 */
   body {
-    max-width: 800px;       /* 最大幅を800pxに制限 */
-    margin: 0 auto;         /* 画面中央に配置 */
-    background-color: #f0f2f5; /* PC背景色を少し変えて区別 */
+    max-width: 800px;
+    margin: 0 auto;
+    background-color: #f0f2f5;
     padding: 20px;
-    font-size: 16px;        /* 基本文字サイズを固定 */
+    font-size: 16px;
   }
 
   /* 2. カードのデザイン調整 */
@@ -172,14 +180,13 @@ button:active{ transform: scale(0.96); opacity: 0.8; }
     border-radius: 12px;
   }
 
-  /* 3. 文字サイズの巨大化防止 (vw -> px/remへ上書き) */
+  /* 3. 文字サイズの巨大化防止 */
   h3 {
     font-size: 24px;
     margin: 20px 0 15px 0;
     border-left-width: 6px;
   }
   
-  /* ボタンの文字サイズと余白を調整 */
   button {
     font-size: 18px;
     padding: 15px 20px;
@@ -187,7 +194,6 @@ button:active{ transform: scale(0.96); opacity: 0.8; }
     border-radius: 10px;
   }
   
-  /* モード切替ボタン */
   .mode-switch {
     margin-bottom: 20px;
     padding: 10px;
@@ -197,51 +203,45 @@ button:active{ transform: scale(0.96); opacity: 0.8; }
     padding: 10px;
   }
 
-  /* 学習画面の巨大文字 */
   .big {
-    font-size: 64px; /* PCでは64pxで固定 */
+    font-size: 64px;
     margin: 40px 0;
     min-height: 80px;
   }
   
-  /* 選択肢ボタン */
   .btn-choice {
     font-size: 20px;
     padding: 20px;
     margin: 10px 0;
   }
   
-  /* ヒントボタンエリア */
   .btn-hint {
     font-size: 16px;
     padding: 10px;
     width: 30%;
   }
 
-  /* 下部情報バー */
   #infoBar {
-    width: 800px; /* bodyと同じ幅に合わせる */
+    width: 800px;
     left: 50%;
-    transform: translateX(-50%); /* 中央配置 */
+    transform: translateX(-50%);
     font-size: 16px;
     padding: 15px;
-    border-radius: 12px 12px 0 0; /* 角を少し丸める */
+    border-radius: 12px 12px 0 0;
   }
 
-  /* ★重要：リストを2列表示にしてスクロールを減らす */
+  /* リストを2列表示にしてスクロールを減らす */
   #basicList, #intermediateList {
     display: grid;
-    grid-template-columns: 1fr 1fr; /* 2列にする */
+    grid-template-columns: 1fr 1fr;
     gap: 10px;
   }
-  /* 2列にした時のボタン幅調整 */
   .btn-blue {
-    width: 100%; /* グリッド内で幅いっぱいにする */
+    width: 100%;
     box-sizing: border-box;
-    margin: 0; /* グリッドのgapで調整するためマージン削除 */
+    margin: 0;
   }
   
-  /* ゲーム中のメッセージ */
   .listening-msg {
     font-size: 24px;
   }
@@ -256,16 +256,17 @@ button:active{ transform: scale(0.96); opacity: 0.8; }
 
 <div id="listScreen" class="screen" style="display:block;">
   <div class="card">
-    <div style="text-align:center; font-size:5vw; font-weight:bold; margin-bottom:4vw; color:#555;">
+    <div style="text-align:center; font-size:2em; font-weight:bold; margin-bottom:1em; color:#555;">
       英単語アプリ 2026
     </div>
     
     <div class="mode-switch">
       <div id="modeStudy" class="mode-option mode-active" onclick="setMode('study')">⚡ 速攻</div>
       <div id="modeGame" class="mode-option" onclick="setMode('game')">🎮 ゲーム</div>
+      <div id="modeUrgent" class="mode-option" onclick="setMode('urgent')">🔥 切迫</div>
     </div>
     
-    <div style="text-align:center; font-size:3.5vw; color:#888; margin-bottom:2vw;">
+    <div style="text-align:center; font-size:0.9em; color:#888; margin-bottom:2vw;">
       モードを選んでから<br>下のリストを押してください
     </div>
 
@@ -321,7 +322,7 @@ button:active{ transform: scale(0.96); opacity: 0.8; }
   
   <div id="choicesArea"></div>
 
-  <div id="gameFeedback" style="text-align:center; font-size:4.5vw; height:8vw; margin-top:2vw; font-weight:bold; color:red;"></div>
+  <div id="gameFeedback" style="text-align:center; font-size:1.2em; height:3em; margin-top:2vw; font-weight:bold; color:red;"></div>
 
   <div style="text-align:center; margin-top:8vw;">
     <button class="btn-gray" onclick="endStudy()">終了して戻る</button>
@@ -364,6 +365,12 @@ let studyStartTime = null;
 let currentList = [];
 let appMode = 'study'; 
 let currentCorrectItem = null;
+let studyTitle = ""; // リストのタイトル保存用
+
+// === 切迫モード用変数 ===
+let urgentTimeouts = []; // タイマーIDを管理
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
 
 // ===== ユーティリティ =====
 const today = () => new Date().toISOString().slice(0,10);
@@ -402,6 +409,7 @@ async function loadCSV(path){
 
 // ===== Firestore関連 =====
 async function saveClearCount(title){
+  if(!title) return;
   try{
     const ref=db.collection("users").doc(userId).collection("clearedLists").doc(title);
     const s=await ref.get();
@@ -456,8 +464,10 @@ async function drawStudyChart(){
 
 function setMode(mode){
   appMode = mode;
-  document.getElementById('modeStudy').className = mode === 'study' ? 'mode-option mode-active' : 'mode-option';
-  document.getElementById('modeGame').className = mode === 'game' ? 'mode-option mode-active' : 'mode-option';
+  ['study', 'game', 'urgent'].forEach(m => {
+    const el = document.getElementById('mode' + m.charAt(0).toUpperCase() + m.slice(1));
+    el.className = 'mode-option' + (mode === m ? ' mode-active' : '');
+  });
 }
 
 // ===== リスト読込 =====
@@ -525,14 +535,15 @@ async function startSession(folder, title, file, directData){
   if(appMode === 'study'){
     startStudyMode(title);
   } else {
+    // ゲームまたは切迫モード
     startGameMode(title);
   }
 }
 
 // ============================================
-// ⚡ 速攻モード (★meaningを再生するよう修正★)
+// ⚡ 速攻モード
 // ============================================
-let studyOrder=[], studyIndex=0, dontKnow=[], studyTitle="", round=1;
+let studyOrder=[], studyIndex=0, dontKnow=[], round=1;
 
 function startStudyMode(t){
   studyTitle=t; round=1; studyIndex=0; dontKnow=[];
@@ -557,14 +568,12 @@ function nextQuestion(){
 }
 function markKnow(){ 
   showAnswer(); 
-  // ここを meaning に変更
   forceSpeak(currentList[studyOrder[studyIndex]].meaning);
   setTimeout(()=>{studyIndex++;nextQuestion();},700); 
 }
 function markDontKnow(){ 
   dontKnow.push(studyOrder[studyIndex]); 
   showAnswer();
-  // ここを meaning に変更
   forceSpeak(currentList[studyOrder[studyIndex]].meaning);
   setTimeout(()=>{studyIndex++;nextQuestion();},1200); 
 }
@@ -573,12 +582,12 @@ function showAnswer(){
 }
 
 // ============================================
-// 🎮 ゲームモード
+// 🎮 ゲームモード & 🔥 切迫モード
 // ============================================
 let gameIndex=0, gameScore=0, gameOrder=[];
 
 function startGameMode(t){
-  studyTitle = t; // ★ここを追加！タイトルをグローバル変数に保存
+  studyTitle = t; // タイトル保存
   gameIndex=0; gameScore=0;
   gameOrder=[...currentList.keys()].sort(()=>Math.random()-0.5);
   document.getElementById("gameScore").innerText = gameScore;
@@ -589,21 +598,17 @@ function startGameMode(t){
 function nextGameQuestion(){
   document.getElementById("gameFeedback").innerText = "";
   
-  // ▼▼▼ 修正箇所：終了判定ロジック ▼▼▼
   if(gameIndex >= gameOrder.length){
     let msg = `ゲーム終了！\nあなたのスコア: ${gameScore} / ${gameOrder.length}`;
-    
     // 全問正解ならクリア回数を保存
     if(gameScore === gameOrder.length){
       saveClearCount(studyTitle);
       msg += "\n\n🎉 Perfect!!\nクリア回数に追加しました！";
     }
-    
     alert(msg);
     return endStudy(true);
   }
-  // ▲▲▲ 修正箇所ここまで ▲▲▲
-
+  
   const correctIdx = gameOrder[gameIndex];
   currentCorrectItem = currentList[correctIdx];
   
@@ -613,6 +618,30 @@ function nextGameQuestion(){
 
   // 音声出題
   setTimeout(() => forceSpeak(currentCorrectItem.word), 400);
+
+  // ▼ 切迫モードのタイマー処理 ▼
+  stopUrgentTimer();
+  if(appMode === 'urgent') {
+    // 最初の読み上げ(約1-2秒)を考慮し、2.5秒後からカウント開始
+    
+    // 1段階目：2.5秒後 -> ヒント2 (もう一度聞く)
+    urgentTimeouts.push(setTimeout(() => {
+       playBeep();
+       gameHint2();
+    }, 2500));
+
+    // 2段階目：さらに1.5秒後(計4.0秒) -> ヒント1 (文字表示)
+    urgentTimeouts.push(setTimeout(() => {
+       playBeep();
+       gameHint1();
+    }, 4000));
+
+    // 3段階目：さらに1.5秒後(計5.5秒) -> タイムアップ
+    urgentTimeouts.push(setTimeout(() => {
+       playBeep();
+       handleTimeUp();
+    }, 5500));
+  }
 
   // 4択生成
   let choices = [currentCorrectItem];
@@ -647,17 +676,16 @@ function gameHint1(){
 function gameHint2(){ forceSpeak(currentCorrectItem.word); }
 function gameHint3(){ forceSpeak(currentCorrectItem.meaning); }
 
-// ===== ゲーム判定（★正解の単語＝meaning に修正★） =====
+// ===== ゲーム判定 =====
 function checkGameAnswer(selected, correct){
+  stopUrgentTimer(); // タイマー停止
+  
   const area = document.getElementById("choicesArea");
   Array.from(area.children).forEach(b => b.disabled = true);
   const feedback = document.getElementById("gameFeedback");
 
   const isLastQuestion = (gameIndex >= gameOrder.length - 1);
   let audioSequence = [];
-
-  // ★「正解の単語」は meaning 列の内容（ユーザー定義）
-  // 言語は自動判定に任せるため lang: null
   const correctAudioText = correct.meaning;
 
   if(selected.word === correct.word){
@@ -667,11 +695,8 @@ function checkGameAnswer(selected, correct){
     feedback.innerText = "⭕ Excellent!";
     feedback.style.color = "green";
     
-    // 1. Phrase
     audioSequence.push({text: "Good job!", lang: "en-US"});
-    // 2. 正解の単語 (meaning)
     audioSequence.push({text: correctAudioText, lang: null}); 
-    // 3. Next (最後以外)
     if(!isLastQuestion){
       audioSequence.push({text: "Let's go on to the next question.", lang: "en-US"});
     }
@@ -686,11 +711,8 @@ function checkGameAnswer(selected, correct){
     feedback.innerText = `❌ 正解: ${correct.meaning}`;
     feedback.style.color = "red";
     
-    // 1. Phrase
     audioSequence.push({text: "Try again. Let's try saying it in English.", lang: "en-US"});
-    // 2. 正解の単語 (meaning)
     audioSequence.push({text: correctAudioText, lang: null}); 
-    // 3. Move on
     audioSequence.push({text: "Let's move on to the next question.", lang: "en-US"});
 
     playSequence(audioSequence, () => {
@@ -700,7 +722,51 @@ function checkGameAnswer(selected, correct){
   }
 }
 
-// ===== 連続再生用 (onendリレー方式) =====
+// === 切迫モード便利関数 ===
+function playBeep() {
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(880, audioCtx.currentTime); 
+  osc.frequency.setValueAtTime(0, audioCtx.currentTime + 0.1); 
+  osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.2);
+
+  gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.4);
+
+  osc.start();
+  osc.stop(audioCtx.currentTime + 0.4);
+}
+
+function stopUrgentTimer() {
+  urgentTimeouts.forEach(id => clearTimeout(id));
+  urgentTimeouts = [];
+}
+
+function handleTimeUp() {
+  const feedback = document.getElementById("gameFeedback");
+  feedback.innerText = "⏰ TIME UP!!";
+  feedback.style.color = "red";
+
+  const area = document.getElementById("choicesArea");
+  Array.from(area.children).forEach(b => b.disabled = true);
+
+  let audioSequence = [];
+  audioSequence.push({text: "Time's up.", lang: "en-US"});
+  audioSequence.push({text: currentCorrectItem.meaning, lang: null}); 
+  audioSequence.push({text: "Next.", lang: "en-US"});
+
+  playSequence(audioSequence, () => {
+    gameIndex++;
+    nextGameQuestion();
+  });
+}
+
+// ===== 連続再生用 =====
 function playSequence(list, onComplete){
   speechSynthesis.cancel();
   let index = 0;
@@ -719,7 +785,7 @@ function playSequence(list, onComplete){
 
     u.onend = function(){
       index++;
-      setTimeout(playNext, 500); // 0.5秒の間隔
+      setTimeout(playNext, 500);
     };
     u.onerror = function(){
       index++;
@@ -753,6 +819,7 @@ function speakAnswer(){
 
 // 画面遷移
 async function endStudy(auto){
+  stopUrgentTimer(); // 念のためタイマー停止
   if(studyStartTime){
     await saveStudyTime(Math.floor((Date.now()-studyStartTime)/1000));
     studyStartTime=null;
@@ -769,5 +836,3 @@ loadAllLists();
 </script>
 </body>
 </html>
-
-

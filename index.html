@@ -3,13 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <title>英単語暗記アプリ by Koji NIHEI 2026</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
 <style>
 body{
-  font-family: Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   background:#fff5fb;
   padding:2vw;
   user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 .screen{ display:none; }
 .card{
@@ -19,56 +21,65 @@ body{
   box-shadow:0 4px 10px rgba(0,0,0,0.08);
   margin-bottom:4vw;
 }
+h3 {
+  font-size: 4.5vw;
+  color: #444;
+  margin: 4vw 1vw 2vw 1vw;
+  border-left: 5px solid #ff9bcd;
+  padding-left: 10px;
+}
 button{
-  padding:2.5vw 4vw;
+  padding:3vw 5vw;
   border-radius:20px;
   border:none;
   font-size:4vw;
-  margin:1vw;
+  margin:1.5vw;
   cursor: pointer;
-  transition: transform 0.1s;
+  transition: transform 0.1s, opacity 0.1s;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
-button:active{ transform: scale(0.95); }
+button:active{ transform: scale(0.96); opacity: 0.8; }
 
-.btn-blue{ background:#9bd8ff; }
-.btn-green{ background:#9be1a7; }
-.btn-pink{ background:#ff9bcd; }
-.btn-gray{ background:#dddddd; }
+.btn-blue{ background:#9bd8ff; color:#004085; width: 90%; text-align:left; }
+.btn-green{ background:#9be1a7; color:#155724; }
+.btn-pink{ background:#ff9bcd; color:#721c24; }
+.btn-gray{ background:#dddddd; color:#333; }
 
 /* ゲーム用の選択肢ボタン */
 .btn-choice{
   width: 100%;
-  margin: 1.5vw 0;
-  padding: 3vw;
-  font-size: 4.5vw;
+  margin: 2vw 0;
+  padding: 4vw;
+  font-size: 5vw;
   background: #f0f8ff;
   border: 2px solid #9bd8ff;
+  border-radius: 12px;
   color: #333;
   text-align: left;
+  font-weight: bold;
 }
 
 .big{
-  font-size:8vw;
-  margin:3vw 0;
+  font-size:10vw;
+  margin:6vw 0;
   text-align:center;
   cursor:pointer;
   font-weight: bold;
-}
-#wordImage{
-  max-width:70%;
-  display:none;
-  margin:3vw auto;
+  word-break: break-word;
 }
 #infoBar{
   position:fixed;
-  bottom:1.5vw;
-  right:1.5vw;
+  bottom:0;
+  left: 0;
+  width: 100%;
   background:rgba(255,255,255,0.95);
-  border-radius:12px;
-  padding:1.5vw 2vw;
-  box-shadow:0 2px 6px rgba(0,0,0,0.15);
-  font-size: 3vw;
+  border-top: 1px solid #eee;
+  padding:3vw;
+  text-align: center;
+  box-shadow:0 -2px 6px rgba(0,0,0,0.05);
+  font-size: 3.5vw;
   z-index: 100;
+  box-sizing: border-box;
 }
 
 /* モード切替スイッチ */
@@ -83,85 +94,155 @@ button:active{ transform: scale(0.95); }
 .mode-option {
   flex: 1;
   text-align: center;
-  padding: 2vw;
+  padding: 2.5vw;
   border-radius: 20px;
   cursor: pointer;
-  font-size: 3.5vw;
+  font-size: 4vw;
   color: #888;
+  transition: 0.3s;
 }
 .mode-active {
   background: #ff9bcd;
   color: white;
   font-weight: bold;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 5px rgba(0,0,0,0.15);
 }
 
 /* スコア表示 */
 .score-board {
   text-align: center;
-  font-size: 5vw;
+  font-size: 6vw;
   color: #ff9bcd;
   font-weight: bold;
   margin-bottom: 2vw;
+}
+
+/* リストがない時のメッセージ */
+.no-list-msg {
+    text-align: center;
+    color: #999;
+    padding: 5vw;
 }
 </style>
 </head>
 
 <body>
 
-<div id="listScreen" class="screen card" style="display:block;">
-  <div class="mode-switch">
-    <div id="modeStudy" class="mode-option mode-active" onclick="setMode('study')">⚡ 速攻モード</div>
-    <div id="modeGame" class="mode-option" onclick="setMode('game')">🎮 ゲームモード</div>
+<div id="listScreen" class="screen" style="display:block;">
+  <div class="card">
+    <div style="text-align:center; font-size:5vw; font-weight:bold; margin-bottom:4vw; color:#555;">
+      英単語アプリ 2026
+    </div>
+    
+    <div class="mode-switch">
+      <div id="modeStudy" class="mode-option mode-active" onclick="setMode('study')">⚡ 速攻</div>
+      <div id="modeGame" class="mode-option" onclick="setMode('game')">🎮 ゲーム</div>
+    </div>
+    
+    <div style="text-align:center; font-size:3.5vw; color:#888; margin-bottom:2vw;">
+      モードを選んでから<br>下のリストを押してください
+    </div>
   </div>
 
-  <h3>📘 基本</h3>
-  <div id="basicList"></div>
+  <div class="card">
+    <h3>📘 基本コース</h3>
+    <div id="basicList" style="text-align:center;"></div>
 
-  <h3>📕 中級</h3>
-  <div id="intermediateList"></div>
+    <h3>📕 中級コース</h3>
+    <div id="intermediateList" style="text-align:center;"></div>
+  </div>
 
-  <h3>📊 学習時間（日別）</h3>
-  <canvas id="studyChart" width="320" height="200"></canvas>
-</div>
+  <div class="card">
+    <h3>📊 学習記録</h3>
+    <div style="text-align:center;">
+        <canvas id="studyChart" width="320" height="200"></canvas>
+    </div>
+  </div>
+  
+  <div style="height:15vw;"></div> </div>
 
-<div id="studyScreen" class="screen card">
-  <div style="text-align:center;color:#888;">⚡ 速攻モード</div>
+<div id="studyScreen" class="screen card" style="min-height: 80vh;">
+  <div style="text-align:center;color:#888;margin-bottom:4vw;">⚡ 速攻モード</div>
+  
   <div class="big" id="questionWord" onclick="speakQuestion()"></div>
-  <div class="big" id="answerMeaning" style="color:#0077ff;"
-       onclick="speakAnswer()"></div>
+  <div class="big" id="answerMeaning" style="color:#0077ff;" onclick="speakAnswer()"></div>
 
-  <div style="text-align:center;">
+  <div style="text-align:center; margin-top:10vw;">
     <button class="btn-green" onclick="markKnow()">分かる</button>
     <button class="btn-pink" onclick="markDontKnow()">分からない</button>
   </div>
-  <div style="text-align:center; margin-top:4vw;">
-    <button class="btn-gray" onclick="endStudy()">終了</button>
+  <div style="text-align:center; margin-top:8vw;">
+    <button class="btn-gray" onclick="endStudy()">終了して戻る</button>
   </div>
 </div>
 
-<div id="gameScreen" class="screen card">
+<div id="gameScreen" class="screen card" style="min-height: 80vh;">
   <div class="score-board">SCORE: <span id="gameScore">0</span></div>
   <div class="big" id="gameQuestionWord" style="margin-bottom:5vw;"></div>
   
-  <div id="choicesArea">
-    </div>
+  <div id="choicesArea"></div>
 
-  <div id="gameFeedback" style="text-align:center; font-size:5vw; height:6vw; margin-top:2vw; color:red;"></div>
+  <div id="gameFeedback" style="text-align:center; font-size:6vw; height:8vw; margin-top:2vw; font-weight:bold;"></div>
 
-  <div style="text-align:center; margin-top:4vw;">
-    <button class="btn-gray" onclick="endStudy()">終了</button>
+  <div style="text-align:center; margin-top:8vw;">
+    <button class="btn-gray" onclick="endStudy()">終了して戻る</button>
   </div>
 </div>
 
 <div id="infoBar">
-  <div id="studyInfo"></div>
+  <div id="studyInfo">読込中...</div>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
+// ===== ★ここに単語データを直接書き込みます（CSV不要）★ =====
+// 好きなだけリストを追加できます
+const builtInLists = {
+  basic: [
+    {
+      title: "基本単語 Part 1",
+      words: [
+        {word: "Apple", meaning: "りんご"},
+        {word: "Dog", meaning: "犬"},
+        {word: "Cat", meaning: "猫"},
+        {word: "Book", meaning: "本"},
+        {word: "Desk", meaning: "机"},
+        {word: "Chair", meaning: "椅子"},
+        {word: "Run", meaning: "走る"},
+        {word: "Eat", meaning: "食べる"},
+        {word: "Study", meaning: "勉強する"},
+        {word: "Play", meaning: "遊ぶ"}
+      ]
+    },
+    {
+      title: "挨拶・日常",
+      words: [
+        {word: "Hello", meaning: "こんにちは"},
+        {word: "Good morning", meaning: "おはよう"},
+        {word: "Thank you", meaning: "ありがとう"},
+        {word: "Sorry", meaning: "ごめんなさい"},
+        {word: "Yes", meaning: "はい"},
+        {word: "No", meaning: "いいえ"}
+      ]
+    }
+  ],
+  intermediate: [
+    {
+      title: "中級単語 Part 1",
+      words: [
+        {word: "Understand", meaning: "理解する"},
+        {word: "Difficult", meaning: "難しい"},
+        {word: "Important", meaning: "重要な"},
+        {word: "Beautiful", meaning: "美しい"},
+        {word: "Experience", meaning: "経験"},
+        {word: "Environment", meaning: "環境"}
+      ]
+    }
+  ]
+};
+
 // ===== Firebase 初期化 =====
 firebase.initializeApp({
   apiKey: "AIzaSyAYEEHtYUdDylKlSwy4mX2S2mIK5Hs3vJA",
@@ -181,7 +262,7 @@ let studyStartTime = null;
 let currentList = [];
 let appMode = 'study'; // 'study' or 'game'
 
-// ===== 時間・CSVユーティリティ =====
+// ===== 時間ユーティリティ =====
 const today = () => new Date().toISOString().slice(0,10);
 const formatTime = sec => {
   const m = Math.floor(sec/60);
@@ -189,38 +270,32 @@ const formatTime = sec => {
   return h ? `${h}時間${m%60}分` : `${m}分`;
 };
 
-async function loadCSV(path){
-  const res = await fetch(path);
-  let text = await res.text();
-  text = text.replace(/^\uFEFF/, ""); 
-  const lines = text.trim().split("\n");
-  const headers = lines[0].split(",").map(h=>h.trim());
-  return lines.slice(1).map(l=>{
-    const v=l.split(",");
-    let o={};
-    headers.forEach((h,i)=>o[h]=v[i]?v[i].trim():"");
-    return o;
-  });
-}
-
 // ===== Firestore =====
 async function saveClearCount(title){
-  const ref=db.collection("users").doc(userId).collection("clearedLists").doc(title);
-  const s=await ref.get();
-  await ref.set({count:(s.exists?s.data().count:0)+1});
+  try{
+    const ref=db.collection("users").doc(userId).collection("clearedLists").doc(title);
+    const s=await ref.get();
+    await ref.set({count:(s.exists?s.data().count:0)+1});
+  }catch(e){}
 }
 async function loadClearCounts(){
-  const s=await db.collection("users").doc(userId).collection("clearedLists").get();
-  let m={}; s.forEach(d=>m[d.id]=d.data().count); return m;
+  try{
+    const s=await db.collection("users").doc(userId).collection("clearedLists").get();
+    let m={}; s.forEach(d=>m[d.id]=d.data().count); return m;
+  }catch(e){return {};}
 }
 async function saveStudyTime(sec){
-  const ref=db.collection("users").doc(userId).collection("studyTime").doc(today());
-  const s=await ref.get();
-  await ref.set({seconds:(s.exists?s.data().seconds:0)+sec});
+  try{
+    const ref=db.collection("users").doc(userId).collection("studyTime").doc(today());
+    const s=await ref.get();
+    await ref.set({seconds:(s.exists?s.data().seconds:0)+sec});
+  }catch(e){}
 }
 async function loadStudyTimes(){
-  const s=await db.collection("users").doc(userId).collection("studyTime").get();
-  let m={}; s.forEach(d=>m[d.id]=d.data().seconds); return m;
+  try{
+    const s=await db.collection("users").doc(userId).collection("studyTime").get();
+    let m={}; s.forEach(d=>m[d.id]=d.data().seconds); return m;
+  }catch(e){return {};}
 }
 
 // ===== 表示・モード管理 =====
@@ -228,13 +303,14 @@ async function updateStudyInfo(){
   const d=await loadStudyTimes();
   const t=d[today()]||0;
   const sum=Object.values(d).reduce((a,b)=>a+b,0);
-  studyInfo.innerText=`📘 今日：${formatTime(t)} / 累計：${formatTime(sum)}`;
+  document.getElementById("studyInfo").innerText=`📘 今日：${formatTime(t)} / 累計：${formatTime(sum)}`;
 }
 
 async function drawStudyChart(){
   const d=await loadStudyTimes();
   const e=Object.entries(d).sort().slice(-7);
-  const c=studyChart, ctx=c.getContext("2d");
+  const c=document.getElementById("studyChart");
+  const ctx=c.getContext("2d");
   ctx.clearRect(0,0,c.width,c.height);
   if(!e.length) return;
   const vals=e.map(v=>Math.floor(v[1]/60));
@@ -248,40 +324,50 @@ async function drawStudyChart(){
   });
 }
 
-// モード切替
 function setMode(mode){
   appMode = mode;
   document.getElementById('modeStudy').className = mode === 'study' ? 'mode-option mode-active' : 'mode-option';
   document.getElementById('modeGame').className = mode === 'game' ? 'mode-option mode-active' : 'mode-option';
 }
 
-// ===== リスト読込 =====
+// ===== リスト読込（内蔵データ使用） =====
 async function loadAllLists(){
-  const basic=await loadCSV("lists/index.csv");
-  const inter=await loadCSV("lists2/index.csv");
-  const counts=await loadClearCounts();
+  const counts = await loadClearCounts();
   
-  const make=(data,folder,id)=>{
-    const c=document.getElementById(id); c.innerHTML="";
-    data.forEach(i=>{
+  const make=(listData, id)=>{
+    const c=document.getElementById(id);
+    c.innerHTML="";
+    if(!listData || listData.length === 0){
+        c.innerHTML = "<div class='no-list-msg'>リストがありません</div>";
+        return;
+    }
+    listData.forEach(item => {
       const b=document.createElement("button");
       b.className="btn-blue";
-      b.innerText=i.title+(counts[i.title]?`（${counts[i.title]}回クリア）`:"");
-      b.onclick=()=>startSession(folder,i.title,i.file);
+      b.innerText = item.title + (counts[item.title]?`（${counts[item.title]}回クリア）`:"");
+      
+      // ボタンを押した時の動作
+      b.onclick = () => {
+         // そのリストの単語データをセットして開始
+         startSession(item.title, item.words);
+      };
       c.appendChild(b);
     });
   };
-  make(basic,"lists","basicList");
-  make(inter,"lists2","intermediateList");
+  
+  make(builtInLists.basic, "basicList");
+  make(builtInLists.intermediate, "intermediateList");
+  
   await updateStudyInfo();
   await drawStudyChart();
   show("listScreen");
 }
 
-// ===== セッション開始（モード分岐） =====
-async function startSession(folder, title, file){
+// ===== セッション開始 =====
+function startSession(title, words){
   studyStartTime = Date.now();
-  currentList = await loadCSV(`${folder}/${file}`);
+  // データをディープコピーして使う
+  currentList = JSON.parse(JSON.stringify(words));
   
   if(appMode === 'study'){
     startStudyMode(title);
@@ -291,7 +377,7 @@ async function startSession(folder, title, file){
 }
 
 // ============================================
-// ⚡ 速攻モード（既存ロジック）
+// ⚡ 速攻モード
 // ============================================
 let studyOrder=[], studyIndex=0, dontKnow=[], studyTitle="", round=1;
 
@@ -314,8 +400,8 @@ function nextQuestion(){
     studyOrder=[...currentList.keys()];
   }
   const it=currentList[studyOrder[studyIndex]];
-  questionWord.innerText=it.word;
-  answerMeaning.innerText="";
+  document.getElementById("questionWord").innerText=it.word;
+  document.getElementById("answerMeaning").innerText="";
 }
 
 function markKnow(){ 
@@ -330,11 +416,11 @@ function markDontKnow(){
   setTimeout(()=>{studyIndex++;nextQuestion();},1200); 
 }
 function showAnswer(){ 
-  answerMeaning.innerText=currentList[studyOrder[studyIndex]].meaning; 
+  document.getElementById("answerMeaning").innerText=currentList[studyOrder[studyIndex]].meaning; 
 }
 
 // ============================================
-// 🎮 ゲームモード（4択クイズ）
+// 🎮 ゲームモード（音声強化版）
 // ============================================
 let gameIndex=0, gameScore=0, gameOrder=[];
 
@@ -347,19 +433,22 @@ function startGameMode(t){
 }
 
 function nextGameQuestion(){
-  document.getElementById("gameFeedback").innerText = "";
+  const feedback = document.getElementById("gameFeedback");
+  feedback.innerText = "";
+  
   if(gameIndex >= gameOrder.length){
     alert(`ゲーム終了！\nあなたのスコア: ${gameScore} / ${gameOrder.length}`);
     return endStudy(true);
   }
   
-  // 正解データ
   const correctIdx = gameOrder[gameIndex];
   const correctItem = currentList[correctIdx];
   
-  // ダミーの選択肢を3つ選ぶ
+  // 4択作成
   let choices = [correctItem];
-  while(choices.length < 4){
+  let safetyLoop = 0;
+  while(choices.length < 4 && safetyLoop < 100){
+    safetyLoop++;
     const r = Math.floor(Math.random() * currentList.length);
     const item = currentList[r];
     if(!choices.includes(item) && item.meaning !== correctItem.meaning){
@@ -368,9 +457,8 @@ function nextGameQuestion(){
   }
   choices.sort(()=>Math.random()-0.5);
 
-  // 画面描画
   document.getElementById("gameQuestionWord").innerText = correctItem.word;
-  speak(correctItem.word); // 出題時
+  speak(correctItem.word);
 
   const area = document.getElementById("choicesArea");
   area.innerHTML = "";
@@ -386,37 +474,79 @@ function nextGameQuestion(){
 
 function checkGameAnswer(selected, correct){
   const area = document.getElementById("choicesArea");
-  // 連打防止
   Array.from(area.children).forEach(b => b.disabled = true);
+  const feedback = document.getElementById("gameFeedback");
 
-  // 音声を2つ連続で再生する関数（励ましフレーズ ＋ 正解単語）
   const playSequence = (phrase, word) => {
-    speechSynthesis.cancel(); // 既存の音声をキャンセル
-    
-    // 1つ目：フレーズ（Good job / Try again）
+    speechSynthesis.cancel();
     const u1 = new SpeechSynthesisUtterance(phrase);
     u1.lang = "en-US";
     u1.rate = 1.1;
-
-    // 2つ目：正解単語
     const u2 = new SpeechSynthesisUtterance(word);
     u2.lang = "en-US";
-    
-    // 順番にキューに入れる
     speechSynthesis.speak(u1);
     speechSynthesis.speak(u2);
   };
 
   if(selected.word === correct.word){
-    // === 正解 ===
+    // 正解
     gameScore++;
     document.getElementById("gameScore").innerText = gameScore;
-    document.getElementById("gameFeedback").innerText = "⭕ Excellent!";
-    document.getElementById("gameFeedback").style.color = "green";
+    feedback.innerText = "⭕ Excellent!";
+    feedback.style.color = "green";
     
-    // 「Good job」→「Apple」
     playSequence("Good job!", correct.word);
 
     setTimeout(() => {
       gameIndex++;
       nextGameQuestion();
+    }, 1500);
+  } else {
+    // 不正解
+    feedback.innerText = `❌ 正解: ${correct.meaning}`;
+    feedback.style.color = "red";
+    
+    playSequence("Try again.", correct.word);
+
+    setTimeout(() => {
+      gameIndex++;
+      nextGameQuestion();
+    }, 2500);
+  }
+}
+
+// ===== 共通・音声 =====
+function speak(t){ 
+  if(!t) return; 
+  speechSynthesis.cancel(); 
+  const u = new SpeechSynthesisUtterance(t);
+  u.lang = "en-US";
+  speechSynthesis.speak(u); 
+}
+function speakQuestion(){ 
+  if(appMode==='study') speak(document.getElementById("questionWord").innerText);
+  else speak(document.getElementById("gameQuestionWord").innerText);
+}
+function speakAnswer(){ 
+  if(appMode==='study') speak(document.getElementById("answerMeaning").innerText);
+}
+
+// ===== 画面遷移 =====
+async function endStudy(auto){
+  if(studyStartTime){
+    await saveStudyTime(Math.floor((Date.now()-studyStartTime)/1000));
+    studyStartTime=null;
+  }
+  if(!auto && !confirm("学習を終了して一覧に戻りますか？")) return;
+  loadAllLists();
+}
+function show(id){
+  document.querySelectorAll(".screen").forEach(s=>s.style.display="none");
+  document.getElementById(id).style.display="block";
+}
+
+// 起動
+loadAllLists();
+</script>
+</body>
+</html>

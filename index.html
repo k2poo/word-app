@@ -578,6 +578,7 @@ function showAnswer(){
 let gameIndex=0, gameScore=0, gameOrder=[];
 
 function startGameMode(t){
+  studyTitle = t; // ★ここを追加！タイトルをグローバル変数に保存
   gameIndex=0; gameScore=0;
   gameOrder=[...currentList.keys()].sort(()=>Math.random()-0.5);
   document.getElementById("gameScore").innerText = gameScore;
@@ -587,11 +588,22 @@ function startGameMode(t){
 
 function nextGameQuestion(){
   document.getElementById("gameFeedback").innerText = "";
+  
+  // ▼▼▼ 修正箇所：終了判定ロジック ▼▼▼
   if(gameIndex >= gameOrder.length){
-    alert(`ゲーム終了！\nあなたのスコア: ${gameScore} / ${gameOrder.length}`);
+    let msg = `ゲーム終了！\nあなたのスコア: ${gameScore} / ${gameOrder.length}`;
+    
+    // 全問正解ならクリア回数を保存
+    if(gameScore === gameOrder.length){
+      saveClearCount(studyTitle);
+      msg += "\n\n🎉 Perfect!!\nクリア回数に追加しました！";
+    }
+    
+    alert(msg);
     return endStudy(true);
   }
-  
+  // ▲▲▲ 修正箇所ここまで ▲▲▲
+
   const correctIdx = gameOrder[gameIndex];
   currentCorrectItem = currentList[correctIdx];
   
@@ -757,4 +769,5 @@ loadAllLists();
 </script>
 </body>
 </html>
+
 

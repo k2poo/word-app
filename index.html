@@ -152,6 +152,103 @@ button:active{ transform: scale(0.96); opacity: 0.8; }
     margin-bottom: 2vw;
     border-radius: 8px;
 }
+/* =========================================
+   デスクトップPC・タブレット向け (幅768px以上)
+   ========================================= */
+@media (min-width: 768px) {
+  /* 1. アプリ全体を中央寄せ＆幅制限 */
+  body {
+    max-width: 800px;       /* 最大幅を800pxに制限 */
+    margin: 0 auto;         /* 画面中央に配置 */
+    background-color: #f0f2f5; /* PC背景色を少し変えて区別 */
+    padding: 20px;
+    font-size: 16px;        /* 基本文字サイズを固定 */
+  }
+
+  /* 2. カードのデザイン調整 */
+  .card {
+    padding: 30px;
+    margin-bottom: 30px;
+    border-radius: 12px;
+  }
+
+  /* 3. 文字サイズの巨大化防止 (vw -> px/remへ上書き) */
+  h3 {
+    font-size: 24px;
+    margin: 20px 0 15px 0;
+    border-left-width: 6px;
+  }
+  
+  /* ボタンの文字サイズと余白を調整 */
+  button {
+    font-size: 18px;
+    padding: 15px 20px;
+    margin: 8px;
+    border-radius: 10px;
+  }
+  
+  /* モード切替ボタン */
+  .mode-switch {
+    margin-bottom: 20px;
+    padding: 10px;
+  }
+  .mode-option {
+    font-size: 18px;
+    padding: 10px;
+  }
+
+  /* 学習画面の巨大文字 */
+  .big {
+    font-size: 64px; /* PCでは64pxで固定 */
+    margin: 40px 0;
+    min-height: 80px;
+  }
+  
+  /* 選択肢ボタン */
+  .btn-choice {
+    font-size: 20px;
+    padding: 20px;
+    margin: 10px 0;
+  }
+  
+  /* ヒントボタンエリア */
+  .btn-hint {
+    font-size: 16px;
+    padding: 10px;
+    width: 30%;
+  }
+
+  /* 下部情報バー */
+  #infoBar {
+    width: 800px; /* bodyと同じ幅に合わせる */
+    left: 50%;
+    transform: translateX(-50%); /* 中央配置 */
+    font-size: 16px;
+    padding: 15px;
+    border-radius: 12px 12px 0 0; /* 角を少し丸める */
+  }
+
+  /* ★重要：リストを2列表示にしてスクロールを減らす */
+  #basicList, #intermediateList {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* 2列にする */
+    gap: 10px;
+  }
+  /* 2列にした時のボタン幅調整 */
+  .btn-blue {
+    width: 100%; /* グリッド内で幅いっぱいにする */
+    box-sizing: border-box;
+    margin: 0; /* グリッドのgapで調整するためマージン削除 */
+  }
+  
+  /* ゲーム中のメッセージ */
+  .listening-msg {
+    font-size: 24px;
+  }
+  .score-board {
+    font-size: 32px;
+  }
+}
 </style>
 </head>
 
@@ -660,3 +757,4 @@ loadAllLists();
 </script>
 </body>
 </html>
+

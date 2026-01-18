@@ -9,6 +9,7 @@ body{
   font-family: Arial, sans-serif;
   background:#fff5fb;
   padding:2vw;
+  user-select: none;
 }
 .screen{ display:none; }
 .card{
@@ -24,16 +25,34 @@ button{
   border:none;
   font-size:4vw;
   margin:1vw;
+  cursor: pointer;
+  transition: transform 0.1s;
 }
+button:active{ transform: scale(0.95); }
+
 .btn-blue{ background:#9bd8ff; }
 .btn-green{ background:#9be1a7; }
 .btn-pink{ background:#ff9bcd; }
 .btn-gray{ background:#dddddd; }
+
+/* ゲーム用の選択肢ボタン */
+.btn-choice{
+  width: 100%;
+  margin: 1.5vw 0;
+  padding: 3vw;
+  font-size: 4.5vw;
+  background: #f0f8ff;
+  border: 2px solid #9bd8ff;
+  color: #333;
+  text-align: left;
+}
+
 .big{
-  font-size:7vw;
+  font-size:8vw;
   margin:3vw 0;
   text-align:center;
   cursor:pointer;
+  font-weight: bold;
 }
 #wordImage{
   max-width:70%;
@@ -44,21 +63,58 @@ button{
   position:fixed;
   bottom:1.5vw;
   right:1.5vw;
-  background:rgba(255,255,255,0.9);
+  background:rgba(255,255,255,0.95);
   border-radius:12px;
   padding:1.5vw 2vw;
   box-shadow:0 2px 6px rgba(0,0,0,0.15);
+  font-size: 3vw;
+  z-index: 100;
 }
-#studyInfo{
-  font-size:3vw;
-  color:#555;
+
+/* モード切替スイッチ */
+.mode-switch {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 4vw;
+  background: #eee;
+  border-radius: 25px;
+  padding: 1vw;
+}
+.mode-option {
+  flex: 1;
+  text-align: center;
+  padding: 2vw;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 3.5vw;
+  color: #888;
+}
+.mode-active {
+  background: #ff9bcd;
+  color: white;
+  font-weight: bold;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+/* スコア表示 */
+.score-board {
+  text-align: center;
+  font-size: 5vw;
+  color: #ff9bcd;
+  font-weight: bold;
+  margin-bottom: 2vw;
 }
 </style>
 </head>
 
 <body>
 
-<div id="listScreen" class="screen card">
+<div id="listScreen" class="screen card" style="display:block;">
+  <div class="mode-switch">
+    <div id="modeStudy" class="mode-option mode-active" onclick="setMode('study')">⚡ 速攻モード</div>
+    <div id="modeGame" class="mode-option" onclick="setMode('game')">🎮 ゲームモード</div>
+  </div>
+
   <h3>📘 基本</h3>
   <div id="basicList"></div>
 
@@ -70,17 +126,35 @@ button{
 </div>
 
 <div id="studyScreen" class="screen card">
+  <div style="text-align:center;color:#888;">⚡ 速攻モード</div>
   <div class="big" id="questionWord" onclick="speakQuestion()"></div>
   <div class="big" id="answerMeaning" style="color:#0077ff;"
        onclick="speakAnswer()"></div>
 
-  <button class="btn-green" onclick="markKnow()">分かる</button>
-  <button class="btn-pink" onclick="markDontKnow()">分からない</button>
-  <button class="btn-gray" onclick="endStudy()">終了</button>
+  <div style="text-align:center;">
+    <button class="btn-green" onclick="markKnow()">分かる</button>
+    <button class="btn-pink" onclick="markDontKnow()">分からない</button>
+  </div>
+  <div style="text-align:center; margin-top:4vw;">
+    <button class="btn-gray" onclick="endStudy()">終了</button>
+  </div>
+</div>
+
+<div id="gameScreen" class="screen card">
+  <div class="score-board">SCORE: <span id="gameScore">0</span></div>
+  <div class="big" id="gameQuestionWord" style="margin-bottom:5vw;"></div>
+  
+  <div id="choicesArea">
+    </div>
+
+  <div id="gameFeedback" style="text-align:center; font-size:5vw; height:6vw; margin-top:2vw; color:red;"></div>
+
+  <div style="text-align:center; margin-top:4vw;">
+    <button class="btn-gray" onclick="endStudy()">終了</button>
+  </div>
 </div>
 
 <div id="infoBar">
-  <div>🌸 英単語暗記アプリ by Koji NIHEI 2026 🌸</div>
   <div id="studyInfo"></div>
 </div>
 
@@ -96,15 +170,18 @@ firebase.initializeApp({
 });
 const db = firebase.firestore();
 
-// ===== userId =====
+// ===== 共通変数 =====
 let userId = localStorage.getItem("userId");
 if(!userId){
   userId = crypto.randomUUID();
   localStorage.setItem("userId", userId);
 }
 
-// ===== 時間ユーティリティ =====
 let studyStartTime = null;
+let currentList = [];
+let appMode = 'study'; // 'study' or 'game'
+
+// ===== 時間・CSVユーティリティ =====
 const today = () => new Date().toISOString().slice(0,10);
 const formatTime = sec => {
   const m = Math.floor(sec/60);
@@ -112,7 +189,6 @@ const formatTime = sec => {
   return h ? `${h}時間${m%60}分` : `${m}分`;
 };
 
-// ===== CSV（BOM対策済み） =====
 async function loadCSV(path){
   const res = await fetch(path);
   let text = await res.text();
@@ -129,35 +205,32 @@ async function loadCSV(path){
 
 // ===== Firestore =====
 async function saveClearCount(title){
-  const ref=db.collection("users").doc(userId)
-    .collection("clearedLists").doc(title);
+  const ref=db.collection("users").doc(userId).collection("clearedLists").doc(title);
   const s=await ref.get();
   await ref.set({count:(s.exists?s.data().count:0)+1});
 }
 async function loadClearCounts(){
-  const s=await db.collection("users").doc(userId)
-    .collection("clearedLists").get();
+  const s=await db.collection("users").doc(userId).collection("clearedLists").get();
   let m={}; s.forEach(d=>m[d.id]=d.data().count); return m;
 }
 async function saveStudyTime(sec){
-  const ref=db.collection("users").doc(userId)
-    .collection("studyTime").doc(today());
+  const ref=db.collection("users").doc(userId).collection("studyTime").doc(today());
   const s=await ref.get();
   await ref.set({seconds:(s.exists?s.data().seconds:0)+sec});
 }
 async function loadStudyTimes(){
-  const s=await db.collection("users").doc(userId)
-    .collection("studyTime").get();
+  const s=await db.collection("users").doc(userId).collection("studyTime").get();
   let m={}; s.forEach(d=>m[d.id]=d.data().seconds); return m;
 }
 
-// ===== 表示 =====
+// ===== 表示・モード管理 =====
 async function updateStudyInfo(){
   const d=await loadStudyTimes();
   const t=d[today()]||0;
   const sum=Object.values(d).reduce((a,b)=>a+b,0);
   studyInfo.innerText=`📘 今日：${formatTime(t)} / 累計：${formatTime(sum)}`;
 }
+
 async function drawStudyChart(){
   const d=await loadStudyTimes();
   const e=Object.entries(d).sort().slice(-7);
@@ -175,20 +248,26 @@ async function drawStudyChart(){
   });
 }
 
-// ===== 学習ロジック =====
-let currentList=[], order=[], index=0, dontKnow=[], title="", round=1;
+// モード切替
+function setMode(mode){
+  appMode = mode;
+  document.getElementById('modeStudy').className = mode === 'study' ? 'mode-option mode-active' : 'mode-option';
+  document.getElementById('modeGame').className = mode === 'game' ? 'mode-option mode-active' : 'mode-option';
+}
 
+// ===== リスト読込 =====
 async function loadAllLists(){
   const basic=await loadCSV("lists/index.csv");
   const inter=await loadCSV("lists2/index.csv");
   const counts=await loadClearCounts();
+  
   const make=(data,folder,id)=>{
     const c=document.getElementById(id); c.innerHTML="";
     data.forEach(i=>{
       const b=document.createElement("button");
       b.className="btn-blue";
       b.innerText=i.title+(counts[i.title]?`（${counts[i.title]}回クリア）`:"");
-      b.onclick=()=>startStudy(folder,i.title,i.file);
+      b.onclick=()=>startSession(folder,i.title,i.file);
       c.appendChild(b);
     });
   };
@@ -199,76 +278,145 @@ async function loadAllLists(){
   show("listScreen");
 }
 
-async function startStudy(folder,t,file){
-  studyStartTime=Date.now();
-  currentList=await loadCSV(`${folder}/${file}`);
-  title=t; round=1; index=0; dontKnow=[];
-  order=[...currentList.keys()].sort(()=>Math.random()-0.5);
+// ===== セッション開始（モード分岐） =====
+async function startSession(folder, title, file){
+  studyStartTime = Date.now();
+  currentList = await loadCSV(`${folder}/${file}`);
+  
+  if(appMode === 'study'){
+    startStudyMode(title);
+  } else {
+    startGameMode(title);
+  }
+}
+
+// ============================================
+// ⚡ 速攻モード（既存ロジック）
+// ============================================
+let studyOrder=[], studyIndex=0, dontKnow=[], studyTitle="", round=1;
+
+function startStudyMode(t){
+  studyTitle=t; round=1; studyIndex=0; dontKnow=[];
+  studyOrder=[...currentList.keys()].sort(()=>Math.random()-0.5);
   show("studyScreen");
   nextQuestion();
 }
 
 function nextQuestion(){
-  if(index>=order.length){
+  if(studyIndex>=studyOrder.length){
     if(!dontKnow.length){
-      saveClearCount(title);
-      alert("すべて正解です！");
+      saveClearCount(studyTitle);
+      alert("すべて正解です！クリア！");
       return endStudy(true);
     }
     currentList=dontKnow.map(i=>currentList[i]);
-    dontKnow=[]; round++; index=0;
-    order=[...currentList.keys()];
+    dontKnow=[]; round++; studyIndex=0;
+    studyOrder=[...currentList.keys()];
   }
-  const it=currentList[order[index]];
+  const it=currentList[studyOrder[studyIndex]];
   questionWord.innerText=it.word;
   answerMeaning.innerText="";
 }
 
-// ★★★ 修正箇所: ボタンクリック時に speakAnswer() を呼び出す ★★★
-// これで、答えをクリックした時と同じ音声（英語設定）が流れます。
 function markKnow(){ 
   showAnswer(); 
   speakAnswer(); 
-  setTimeout(()=>{index++;nextQuestion();},700); 
+  setTimeout(()=>{studyIndex++;nextQuestion();},700); 
 }
 function markDontKnow(){ 
-  dontKnow.push(order[index]); 
+  dontKnow.push(studyOrder[studyIndex]); 
   showAnswer(); 
   speakAnswer(); 
-  setTimeout(()=>{index++;nextQuestion();},1200); 
+  setTimeout(()=>{studyIndex++;nextQuestion();},1200); 
+}
+function showAnswer(){ 
+  answerMeaning.innerText=currentList[studyOrder[studyIndex]].meaning; 
 }
 
-function showAnswer(){ answerMeaning.innerText=currentList[order[index]].meaning; }
+// ============================================
+// 🎮 ゲームモード（4択クイズ）
+// ============================================
+let gameIndex=0, gameScore=0, gameOrder=[];
 
-// ===== 音声（シンプル・英語固定版） =====
-function speak(t){ 
-  if(!t) return; 
-  speechSynthesis.cancel(); 
-
-  const u = new SpeechSynthesisUtterance(t);
-  u.lang = "en-US"; // 常に英語として読み上げる
-  speechSynthesis.speak(u); 
+function startGameMode(t){
+  gameIndex=0; gameScore=0;
+  gameOrder=[...currentList.keys()].sort(()=>Math.random()-0.5);
+  document.getElementById("gameScore").innerText = gameScore;
+  show("gameScreen");
+  nextGameQuestion();
 }
 
-function speakQuestion(){ speak(questionWord.innerText); }
-function speakAnswer(){ speak(answerMeaning.innerText); }
-
-// ===== 画面 =====
-async function endStudy(auto){
-  if(studyStartTime){
-    await saveStudyTime(Math.floor((Date.now()-studyStartTime)/1000));
-    studyStartTime=null;
+function nextGameQuestion(){
+  document.getElementById("gameFeedback").innerText = "";
+  if(gameIndex >= gameOrder.length){
+    alert(`ゲーム終了！\nあなたのスコア: ${gameScore} / ${gameOrder.length}`);
+    return endStudy(true);
   }
-  if(!auto && !confirm("学習を終了しますか？")) return;
-  loadAllLists();
-}
-function show(id){
-  document.querySelectorAll(".screen").forEach(s=>s.style.display="none");
-  document.getElementById(id).style.display="block";
+  
+  // 正解データ
+  const correctIdx = gameOrder[gameIndex];
+  const correctItem = currentList[correctIdx];
+  
+  // ダミーの選択肢を3つ選ぶ
+  let choices = [correctItem];
+  while(choices.length < 4){
+    const r = Math.floor(Math.random() * currentList.length);
+    const item = currentList[r];
+    if(!choices.includes(item) && item.meaning !== correctItem.meaning){
+      choices.push(item);
+    }
+  }
+  choices.sort(()=>Math.random()-0.5);
+
+  // 画面描画
+  document.getElementById("gameQuestionWord").innerText = correctItem.word;
+  speak(correctItem.word); // 出題時
+
+  const area = document.getElementById("choicesArea");
+  area.innerHTML = "";
+  
+  choices.forEach(c => {
+    const btn = document.createElement("button");
+    btn.className = "btn-choice";
+    btn.innerText = c.meaning;
+    btn.onclick = () => checkGameAnswer(c, correctItem);
+    area.appendChild(btn);
+  });
 }
 
-// 起動
-loadAllLists();
-</script>
-</body>
-</html>
+function checkGameAnswer(selected, correct){
+  const area = document.getElementById("choicesArea");
+  // 連打防止
+  Array.from(area.children).forEach(b => b.disabled = true);
+
+  // 音声を2つ連続で再生する関数（励ましフレーズ ＋ 正解単語）
+  const playSequence = (phrase, word) => {
+    speechSynthesis.cancel(); // 既存の音声をキャンセル
+    
+    // 1つ目：フレーズ（Good job / Try again）
+    const u1 = new SpeechSynthesisUtterance(phrase);
+    u1.lang = "en-US";
+    u1.rate = 1.1;
+
+    // 2つ目：正解単語
+    const u2 = new SpeechSynthesisUtterance(word);
+    u2.lang = "en-US";
+    
+    // 順番にキューに入れる
+    speechSynthesis.speak(u1);
+    speechSynthesis.speak(u2);
+  };
+
+  if(selected.word === correct.word){
+    // === 正解 ===
+    gameScore++;
+    document.getElementById("gameScore").innerText = gameScore;
+    document.getElementById("gameFeedback").innerText = "⭕ Excellent!";
+    document.getElementById("gameFeedback").style.color = "green";
+    
+    // 「Good job」→「Apple」
+    playSequence("Good job!", correct.word);
+
+    setTimeout(() => {
+      gameIndex++;
+      nextGameQuestion();

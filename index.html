@@ -45,7 +45,6 @@ button:active{ transform: scale(0.96); opacity: 0.8; }
 .btn-pink{ background:#ff9bcd; color:#721c24; }
 .btn-gray{ background:#dddddd; color:#333; }
 
-/* ゲーム用選択肢ボタン */
 .btn-choice{
   width: 100%;
   margin: 2vw 0;
@@ -59,7 +58,6 @@ button:active{ transform: scale(0.96); opacity: 0.8; }
   font-weight: bold;
 }
 
-/* ヒントボタン */
 .hint-area {
   display: flex;
   justify-content: space-around;
@@ -84,7 +82,6 @@ button:active{ transform: scale(0.96); opacity: 0.8; }
   word-break: break-word;
   min-height: 12vw; 
 }
-/* 音声出題中の表示 */
 .listening-msg {
   font-size: 5vw;
   color: #ff9bcd;
@@ -146,7 +143,6 @@ button:active{ transform: scale(0.96); opacity: 0.8; }
   margin-bottom: 2vw;
 }
 
-/* 読み込みステータス表示 */
 #loadingStatus {
     font-size: 3vw;
     color: #666;
@@ -243,7 +239,7 @@ button:active{ transform: scale(0.96); opacity: 0.8; }
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
-// ===== ★バックアップ用データ (ファイル読込失敗時に使用) ★ =====
+// ===== ★バックアップ用データ ★ =====
 const BACKUP_DATA = {
   basic: [
     {title: "基本単語1(Backup)", file:"backup_basic", data:[{word:"Apple",meaning:"りんご"},{word:"Dog",meaning:"犬"},{word:"Cat",meaning:"猫"},{word:"Run",meaning:"走る"}]},
@@ -280,7 +276,7 @@ const formatTime = sec => {
   return h ? `${h}時間${m%60}分` : `${m}分`;
 };
 
-// ===== CSV読み込み (タイムアウト付き) =====
+// ===== CSV読み込み =====
 async function loadCSV(path){
   if(path.startsWith("backup_")){ return null; }
   const controller = new AbortController();
@@ -367,7 +363,7 @@ function setMode(mode){
   document.getElementById('modeGame').className = mode === 'game' ? 'mode-option mode-active' : 'mode-option';
 }
 
-// ===== ★リスト読込 (ハイブリッド方式)★ =====
+// ===== リスト読込 =====
 async function loadAllLists(){
   const statusDiv = document.getElementById("loadingStatus");
   statusDiv.innerText = "データ読込中...";
@@ -463,12 +459,12 @@ function nextQuestion(){
   document.getElementById("answerMeaning").innerText="";
 }
 function markKnow(){ 
-  showAnswer(); speakAnswer(); 
+  forceSpeak(document.getElementById("answerMeaning").innerText);
   setTimeout(()=>{studyIndex++;nextQuestion();},700); 
 }
 function markDontKnow(){ 
   dontKnow.push(studyOrder[studyIndex]); 
-  showAnswer(); speakAnswer(); 
+  forceSpeak(document.getElementById("answerMeaning").innerText);
   setTimeout(()=>{studyIndex++;nextQuestion();},1200); 
 }
 function showAnswer(){ 
@@ -476,7 +472,7 @@ function showAnswer(){
 }
 
 // ============================================
-// 🎮 ゲームモード（リスニング強化版）
+// 🎮 ゲームモード
 // ============================================
 let gameIndex=0, gameScore=0, gameOrder=[];
 
@@ -498,13 +494,12 @@ function nextGameQuestion(){
   const correctIdx = gameOrder[gameIndex];
   currentCorrectItem = currentList[correctIdx];
   
-  // 文字を隠し、メッセージを表示
   document.getElementById("gameQuestionWord").style.display = "none";
   document.getElementById("gameQuestionWord").innerText = currentCorrectItem.word;
   document.getElementById("listeningMsg").style.display = "block";
 
   // 音声出題
-  setTimeout(() => speak(currentCorrectItem.word), 400);
+  setTimeout(() => forceSpeak(currentCorrectItem.word), 400);
 
   // 4択生成
   let choices = [currentCorrectItem];
@@ -531,24 +526,25 @@ function nextGameQuestion(){
   });
 }
 
-// --- ヒント機能 ---
 function gameHint1(){
   document.getElementById("listeningMsg").style.display = "none";
   document.getElementById("gameQuestionWord").style.display = "block";
-  speak(currentCorrectItem.word);
+  forceSpeak(currentCorrectItem.word);
 }
-function gameHint2(){ speak(currentCorrectItem.word); }
-function gameHint3(){ speak(currentCorrectItem.meaning); }
+function gameHint2(){ forceSpeak(currentCorrectItem.word); }
+function gameHint3(){ forceSpeak(currentCorrectItem.meaning); }
 
-
-// --- 正誤判定 (★ここを修正しました★) ---
+// ===== ★修正箇所: 音声キューによる順次再生 =====
 function checkGameAnswer(selected, correct){
   const area = document.getElementById("choicesArea");
   Array.from(area.children).forEach(b => b.disabled = true);
   const feedback = document.getElementById("gameFeedback");
 
-  // 最後の問題かどうかチェック
+  // 最後の問題かどうか
   const isLastQuestion = (gameIndex >= gameOrder.length - 1);
+
+  // 再生する音声リストを作成
+  let audioSequence = [];
 
   if(selected.word === correct.word){
     // === 正解 ===
@@ -557,88 +553,82 @@ function checkGameAnswer(selected, correct){
     feedback.innerText = "⭕ Excellent!";
     feedback.style.color = "green";
     
-    // 1. "Good job!"
-    speak("Good job!", "en-US");
-    
-    // 2. 正解の単語
-    speak(correct.word);
-    
-    // 3. 次へ (最後以外)
+    // 1. Good job
+    audioSequence.push({text: "Good job!", lang: "en-US"});
+    // 2. 正解単語 (自動判定)
+    audioSequence.push({text: correct.word, lang: null});
+    // 3. Next (最後以外)
     if(!isLastQuestion){
-        speak("Let's go on to the next question.", "en-US");
+      audioSequence.push({text: "Let's go on to the next question.", lang: "en-US"});
     }
 
-    // 音声が長いので4秒待つ
+    // キュー再生
+    playSequence(audioSequence);
+
+    // 次へ (音声が長いので5秒待つ)
     setTimeout(() => {
       gameIndex++;
       nextGameQuestion();
-    }, 4000); 
+    }, 5000); 
   } else {
     // === 不正解 ===
     feedback.innerText = `❌ 正解: ${correct.meaning}`;
     feedback.style.color = "red";
     
-    // 1. "Try again..."
-    speak("Try again. Let's try saying it in English.", "en-US");
-    
-    // 2. 正解の単語
-    speak(correct.word);
+    // 1. Try again
+    audioSequence.push({text: "Try again. Let's try saying it in English.", lang: "en-US"});
+    // 2. 正解単語
+    audioSequence.push({text: correct.word, lang: null});
+    // 3. Move on
+    audioSequence.push({text: "Let's move on to the next question.", lang: "en-US"});
 
-    // 3. "Let's move on..."
-    speak("Let's move on to the next question.", "en-US");
+    // キュー再生
+    playSequence(audioSequence);
 
-    // 音声が長いので6秒待つ
+    // 次へ (音声がかなり長いので7秒待つ)
     setTimeout(() => {
       gameIndex++;
       nextGameQuestion();
-    }, 6000);
+    }, 7000);
   }
 }
 
-// ===== 共通・音声 =====
-// 自動判定: 日本語が含まれていれば日本語音声、それ以外は英語音声
-function speak(t, explicitLang){ 
-  if(!t) return; 
-  speechSynthesis.cancel(); // 連続再生する場合はキューに入れるため、ここはcancelしない方が良い場合もあるが、
-                            // ブラウザによっては前の音声が残るので、一連の流れを作るにはcancelせず連続で呼ぶのが定石。
-                            // しかし、ここではシンプルな「関数呼び出し順」で動かすため、呼び出し側で制御するか、
-                            // あるいは、短時間に連続で呼ばれることを想定してcancelを抜く。
-                            // 今回の要件（Good job -> Word -> Next）を実現するには、
-                            // speechSynthesisのキュー機能を活用するため、speak内でcancel()を呼ぶと前の音声が消えてしまいます。
-                            // ★修正: speak呼び出し時に、強制的にcancelしないように変更★
-  
-  // しかし、ユーザーがボタンを連打した場合などはcancelしたい。
-  // ここでは「一連のフロー」の中ではcancelせず、新しいアクション（ボタンクリック時など）でcancelするのが理想ですが、
-  // 簡易的に実装するため、speak関数内ではcancelを削除し、
-  // 「出題時」や「回答時」の先頭でのみcancelするようにします。
-  
-  const u = new SpeechSynthesisUtterance(t);
-  
-  if(explicitLang){
-    u.lang = explicitLang;
-  } else {
-    u.lang = /[ぁ-んァ-ン一-龠]/.test(t) ? "ja-JP" : "en-US";
-  }
-  
-  u.rate = 1.0;
-  speechSynthesis.speak(u); 
+// ===== 連続再生用関数 =====
+function playSequence(list){
+  // 最初に既存の音声を全キャンセル
+  speechSynthesis.cancel();
+
+  list.forEach(item => {
+    const u = new SpeechSynthesisUtterance(item.text);
+    // 言語指定があれば従う。なければ自動判定
+    if(item.lang){
+      u.lang = item.lang;
+    } else {
+      u.lang = /[ぁ-んァ-ン一-龠]/.test(item.text) ? "ja-JP" : "en-US";
+    }
+    u.rate = 1.0;
+    // speakを連続で呼ぶとブラウザが勝手にキュー（待ち行列）に入れて順番に流してくれる
+    speechSynthesis.speak(u);
+  });
 }
 
-// ボタンを押した時などは、前の音声を消してから再生したいので、ラッパーを作る
+// ===== 単発再生用 (ボタンクリック時など) =====
 function forceSpeak(t){
-    speechSynthesis.cancel();
-    speak(t);
+    if(!t) return;
+    speechSynthesis.cancel(); // 即座に切り替える
+    const u = new SpeechSynthesisUtterance(t);
+    u.lang = /[ぁ-んァ-ン一-龠]/.test(t) ? "ja-JP" : "en-US";
+    speechSynthesis.speak(u);
 }
 
 function speakQuestion(){ 
-  // 出題時は前の音声を消す
   speechSynthesis.cancel();
-  if(appMode==='study') speak(document.getElementById("questionWord").innerText);
-  else speak(document.getElementById("gameQuestionWord").innerText);
+  if(appMode==='study') forceSpeak(document.getElementById("questionWord").innerText);
+  else forceSpeak(document.getElementById("gameQuestionWord").innerText);
 }
 function speakAnswer(){ 
   speechSynthesis.cancel();
-  if(appMode==='study') speak(document.getElementById("answerMeaning").innerText);
+  if(appMode==='study') forceSpeak(document.getElementById("answerMeaning").innerText);
 }
 
 // 画面遷移

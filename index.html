@@ -433,7 +433,7 @@ async function startSession(folder, title, file, directData){
 }
 
 // ============================================
-// ⚡ 速攻モード
+// ⚡ 速攻モード (★ここを修正しました★)
 // ============================================
 let studyOrder=[], studyIndex=0, dontKnow=[], studyTitle="", round=1;
 
@@ -458,13 +458,16 @@ function nextQuestion(){
   document.getElementById("questionWord").innerText=it.word;
   document.getElementById("answerMeaning").innerText="";
 }
+// ★修正: showAnswer()を先に呼んでから、単語を読み上げる
 function markKnow(){ 
-  forceSpeak(document.getElementById("answerMeaning").innerText);
+  showAnswer(); 
+  forceSpeak(currentList[studyOrder[studyIndex]].word);
   setTimeout(()=>{studyIndex++;nextQuestion();},700); 
 }
 function markDontKnow(){ 
   dontKnow.push(studyOrder[studyIndex]); 
-  forceSpeak(document.getElementById("answerMeaning").innerText);
+  showAnswer();
+  forceSpeak(currentList[studyOrder[studyIndex]].word);
   setTimeout(()=>{studyIndex++;nextQuestion();},1200); 
 }
 function showAnswer(){ 
@@ -534,17 +537,17 @@ function gameHint1(){
 function gameHint2(){ forceSpeak(currentCorrectItem.word); }
 function gameHint3(){ forceSpeak(currentCorrectItem.meaning); }
 
-// ===== ★修正箇所: 音声キューによる順次再生 =====
+// ===== ゲーム判定（音声シーケンス修正） =====
 function checkGameAnswer(selected, correct){
   const area = document.getElementById("choicesArea");
   Array.from(area.children).forEach(b => b.disabled = true);
   const feedback = document.getElementById("gameFeedback");
 
-  // 最後の問題かどうか
   const isLastQuestion = (gameIndex >= gameOrder.length - 1);
-
-  // 再生する音声リストを作成
   let audioSequence = [];
+
+  // ★正解・不正解問わず、読み上げる「正解音声」は、correct.word（英語）を指定
+  const correctAudioText = correct.word;
 
   if(selected.word === correct.word){
     // === 正解 ===
@@ -553,19 +556,17 @@ function checkGameAnswer(selected, correct){
     feedback.innerText = "⭕ Excellent!";
     feedback.style.color = "green";
     
-    // 1. Good job
+    // 1. Phrase
     audioSequence.push({text: "Good job!", lang: "en-US"});
-    // 2. 正解単語 (自動判定)
-    audioSequence.push({text: correct.word, lang: null});
+    // 2. 正解単語 (英語)
+    audioSequence.push({text: correctAudioText, lang: "en-US"});
     // 3. Next (最後以外)
     if(!isLastQuestion){
       audioSequence.push({text: "Let's go on to the next question.", lang: "en-US"});
     }
 
-    // キュー再生
     playSequence(audioSequence);
 
-    // 次へ (音声が長いので5秒待つ)
     setTimeout(() => {
       gameIndex++;
       nextGameQuestion();
@@ -575,17 +576,15 @@ function checkGameAnswer(selected, correct){
     feedback.innerText = `❌ 正解: ${correct.meaning}`;
     feedback.style.color = "red";
     
-    // 1. Try again
+    // 1. Phrase
     audioSequence.push({text: "Try again. Let's try saying it in English.", lang: "en-US"});
-    // 2. 正解単語
-    audioSequence.push({text: correct.word, lang: null});
+    // 2. 正解単語 (英語)
+    audioSequence.push({text: correctAudioText, lang: "en-US"});
     // 3. Move on
     audioSequence.push({text: "Let's move on to the next question.", lang: "en-US"});
 
-    // キュー再生
     playSequence(audioSequence);
 
-    // 次へ (音声がかなり長いので7秒待つ)
     setTimeout(() => {
       gameIndex++;
       nextGameQuestion();
@@ -593,29 +592,25 @@ function checkGameAnswer(selected, correct){
   }
 }
 
-// ===== 連続再生用関数 =====
+// ===== 連続再生用 =====
 function playSequence(list){
-  // 最初に既存の音声を全キャンセル
-  speechSynthesis.cancel();
-
+  speechSynthesis.cancel(); // 最初にクリア
   list.forEach(item => {
     const u = new SpeechSynthesisUtterance(item.text);
-    // 言語指定があれば従う。なければ自動判定
     if(item.lang){
       u.lang = item.lang;
     } else {
       u.lang = /[ぁ-んァ-ン一-龠]/.test(item.text) ? "ja-JP" : "en-US";
     }
     u.rate = 1.0;
-    // speakを連続で呼ぶとブラウザが勝手にキュー（待ち行列）に入れて順番に流してくれる
     speechSynthesis.speak(u);
   });
 }
 
-// ===== 単発再生用 (ボタンクリック時など) =====
+// ===== 単発再生用 =====
 function forceSpeak(t){
     if(!t) return;
-    speechSynthesis.cancel(); // 即座に切り替える
+    speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(t);
     u.lang = /[ぁ-んァ-ン一-龠]/.test(t) ? "ja-JP" : "en-US";
     speechSynthesis.speak(u);

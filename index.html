@@ -618,28 +618,27 @@ function nextGameQuestion(){
   // 音声出題
   setTimeout(() => forceSpeak(currentCorrectItem.word), 400);
 
-  // ▼ 切迫モードのタイマー処理（改） ▼
+  // ▼ 切迫モードのタイマー処理（改：0.6秒間隔）▼
   stopUrgentTimer();
   if(appMode === 'urgent') {
-    // ステップ：出題(約1.5秒待機) -> ピッ -> 0.7秒 -> ピッ -> 0.7秒 -> ヒント2
-    // -> (約2秒待機) -> ピッ -> 0.7秒 -> ピッ -> タイムオーバー
+    // ステップ：出題(約2秒待機) -> ピッ -> 0.6秒 -> ピッ -> 0.6秒 -> ヒント2
+    // -> (約2秒待機) -> ピッ -> 0.6秒 -> ピッ -> 0.6秒 -> タイムオーバー
 
     const startDelay = 2000; // 出題音声が終わるのを待つ時間
 
     // === 第1フェーズ：ヒント2への予告 ===
     urgentTimeouts.push(setTimeout(playBeep, startDelay));            // ピッ
-    urgentTimeouts.push(setTimeout(playBeep, startDelay + 700));      // 0.7秒後にピッ
-    urgentTimeouts.push(setTimeout(gameHint2, startDelay + 1400));    // さらに0.7秒後にヒント2(再正)
+    urgentTimeouts.push(setTimeout(playBeep, startDelay + 600));      // 0.6秒後にピッ
+    urgentTimeouts.push(setTimeout(gameHint2, startDelay + 1200));    // さらに0.6秒後にヒント2(再正)
 
     // === 第2フェーズ：タイムオーバーへの予告 ===
     // ヒント2再生後、ユーザーが考える時間（ここでは2秒）を設ける
-    const phase2Start = startDelay + 1400 + 2000; 
+    const phase2Start = startDelay + 1200 + 2000; 
 
     urgentTimeouts.push(setTimeout(playBeep, phase2Start));           // ピッ
-    urgentTimeouts.push(setTimeout(playBeep, phase2Start + 700));     // 0.7秒後にピッ
-    urgentTimeouts.push(setTimeout(handleTimeUp, phase2Start + 1200)); // 直後にタイムオーバー
+    urgentTimeouts.push(setTimeout(playBeep, phase2Start + 600));     // 0.6秒後にピッ
+    urgentTimeouts.push(setTimeout(handleTimeUp, phase2Start + 1200)); // さらに0.6秒後に終了
   }
-  // ▲▲▲ 変更ここまで ▲▲▲
 
   // 4択生成
   let choices = [currentCorrectItem];
@@ -665,6 +664,7 @@ function nextGameQuestion(){
     area.appendChild(btn);
   });
 }
+
 function gameHint1(){
   document.getElementById("listeningMsg").style.display = "none";
   document.getElementById("gameQuestionWord").style.display = "block";
@@ -720,7 +720,6 @@ function checkGameAnswer(selected, correct){
 }
 
 // === 切迫モード便利関数 ===
-// 「ピッ」と1回だけ鳴らす関数（スケジュールで2回呼び出します）
 function playBeep() {
   if (audioCtx.state === 'suspended') audioCtx.resume();
   const osc = audioCtx.createOscillator();
@@ -731,11 +730,13 @@ function playBeep() {
   osc.type = 'square';
   osc.frequency.setValueAtTime(880, audioCtx.currentTime); 
   gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-  // 0.1秒だけ鳴らして切る
+  // 短く切る (0.1秒)
   gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.1);
+
   osc.start();
   osc.stop(audioCtx.currentTime + 0.1);
 }
+
 function stopUrgentTimer() {
   urgentTimeouts.forEach(id => clearTimeout(id));
   urgentTimeouts = [];
@@ -830,4 +831,3 @@ loadAllLists();
 </script>
 </body>
 </html>
-

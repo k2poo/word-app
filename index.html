@@ -282,11 +282,9 @@ const formatTime = sec => {
 
 // ===== CSV読み込み (タイムアウト付き) =====
 async function loadCSV(path){
-  // 内蔵バックアップデータの判別
   if(path.startsWith("backup_")){ return null; }
-
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 2000); // 2秒で諦める
+  const timeoutId = setTimeout(() => controller.abort(), 2000); 
 
   try {
     const res = await fetch(path + "?t=" + Date.now(), { signal: controller.signal });
@@ -305,7 +303,7 @@ async function loadCSV(path){
       return o;
     });
   } catch(e) {
-    return null; // 失敗したらnullを返す
+    return null; 
   }
 }
 
@@ -375,16 +373,13 @@ async function loadAllLists(){
   statusDiv.innerText = "データ読込中...";
   statusDiv.style.color = "blue";
 
-  // 1. まずファイルを読みに行く
   let basic = await loadCSV("lists/index.csv");
   let inter = await loadCSV("lists2/index.csv");
   
-  // 2. 失敗していたらバックアップを使う
   let usedBackup = false;
   if(!basic) { basic = BACKUP_DATA.basic; usedBackup = true; }
   if(!inter) { inter = BACKUP_DATA.inter; usedBackup = true; }
 
-  // 3. ステータス表示
   if(usedBackup){
     statusDiv.innerHTML = "⚠️ ファイル読込失敗。<br>予備データで起動しました。<br>(フォルダ構成を確認してください)";
     statusDiv.style.color = "red";
@@ -400,4 +395,215 @@ async function loadAllLists(){
     const c=document.getElementById(id);
     c.innerHTML="";
     data.forEach(i=>{
-      const b=document
+      const b=document.createElement("button");
+      b.className="btn-blue";
+      const title = i.title || "No Title";
+      b.innerText = title + (counts[title]?`（${counts[title]}回クリア）`:"");
+      
+      if(i.data){
+        b.onclick = () => startSession(folder, title, i.file, i.data);
+      } else {
+        b.onclick = () => startSession(folder, title, i.file, null);
+      }
+      c.appendChild(b);
+    });
+  };
+  
+  make(basic, "lists", "basicList");
+  make(inter, "lists2", "intermediateList");
+  await updateStudyInfo();
+  await drawStudyChart();
+  show("listScreen");
+}
+
+async function startSession(folder, title, file, directData){
+  studyStartTime = Date.now();
+  
+  if(directData){
+    currentList = JSON.parse(JSON.stringify(directData));
+  } else {
+    currentList = await loadCSV(`${folder}/${file}`);
+    if(!currentList){
+      alert("このリストのファイルが見つかりません");
+      return;
+    }
+  }
+
+  if(appMode === 'study'){
+    startStudyMode(title);
+  } else {
+    startGameMode(title);
+  }
+}
+
+// ============================================
+// ⚡ 速攻モード
+// ============================================
+let studyOrder=[], studyIndex=0, dontKnow=[], studyTitle="", round=1;
+
+function startStudyMode(t){
+  studyTitle=t; round=1; studyIndex=0; dontKnow=[];
+  studyOrder=[...currentList.keys()].sort(()=>Math.random()-0.5);
+  show("studyScreen");
+  nextQuestion();
+}
+function nextQuestion(){
+  if(studyIndex>=studyOrder.length){
+    if(!dontKnow.length){
+      saveClearCount(studyTitle);
+      alert("すべて正解です！クリア！");
+      return endStudy(true);
+    }
+    currentList=dontKnow.map(i=>currentList[i]);
+    dontKnow=[]; round++; studyIndex=0;
+    studyOrder=[...currentList.keys()];
+  }
+  const it=currentList[studyOrder[studyIndex]];
+  document.getElementById("questionWord").innerText=it.word;
+  document.getElementById("answerMeaning").innerText="";
+}
+function markKnow(){ 
+  showAnswer(); speakAnswer(); 
+  setTimeout(()=>{studyIndex++;nextQuestion();},700); 
+}
+function markDontKnow(){ 
+  dontKnow.push(studyOrder[studyIndex]); 
+  showAnswer(); speakAnswer(); 
+  setTimeout(()=>{studyIndex++;nextQuestion();},1200); 
+}
+function showAnswer(){ 
+  document.getElementById("answerMeaning").innerText=currentList[studyOrder[studyIndex]].meaning; 
+}
+
+// ============================================
+// 🎮 ゲームモード（リスニング強化版）
+// ============================================
+let gameIndex=0, gameScore=0, gameOrder=[];
+
+function startGameMode(t){
+  gameIndex=0; gameScore=0;
+  gameOrder=[...currentList.keys()].sort(()=>Math.random()-0.5);
+  document.getElementById("gameScore").innerText = gameScore;
+  show("gameScreen");
+  nextGameQuestion();
+}
+
+function nextGameQuestion(){
+  document.getElementById("gameFeedback").innerText = "";
+  if(gameIndex >= gameOrder.length){
+    alert(`ゲーム終了！\nあなたのスコア: ${gameScore} / ${gameOrder.length}`);
+    return endStudy(true);
+  }
+  
+  const correctIdx = gameOrder[gameIndex];
+  currentCorrectItem = currentList[correctIdx];
+  
+  // 文字を隠し、メッセージを表示
+  document.getElementById("gameQuestionWord").style.display = "none";
+  document.getElementById("gameQuestionWord").innerText = currentCorrectItem.word;
+  document.getElementById("listeningMsg").style.display = "block";
+
+  // 音声出題
+  setTimeout(() => speak(currentCorrectItem.word), 400);
+
+  // 4択生成
+  let choices = [currentCorrectItem];
+  let loop=0;
+  while(choices.length < 4 && loop < 100){
+    loop++;
+    const r = Math.floor(Math.random() * currentList.length);
+    const item = currentList[r];
+    if(!choices.includes(item) && item.meaning !== currentCorrectItem.meaning){
+      choices.push(item);
+    }
+  }
+  choices.sort(()=>Math.random()-0.5);
+
+  const area = document.getElementById("choicesArea");
+  area.innerHTML = "";
+  
+  choices.forEach(c => {
+    const btn = document.createElement("button");
+    btn.className = "btn-choice";
+    btn.innerText = c.meaning;
+    btn.onclick = () => checkGameAnswer(c, currentCorrectItem);
+    area.appendChild(btn);
+  });
+}
+
+// --- ヒント機能 ---
+function gameHint1(){
+  document.getElementById("listeningMsg").style.display = "none";
+  document.getElementById("gameQuestionWord").style.display = "block";
+  speak(currentCorrectItem.word);
+}
+function gameHint2(){ speak(currentCorrectItem.word); }
+function gameHint3(){ speak(currentCorrectItem.meaning); }
+
+
+// --- 正誤判定 ---
+function checkGameAnswer(selected, correct){
+  const area = document.getElementById("choicesArea");
+  Array.from(area.children).forEach(b => b.disabled = true);
+  const feedback = document.getElementById("gameFeedback");
+
+  if(selected.word === correct.word){
+    gameScore++;
+    document.getElementById("gameScore").innerText = gameScore;
+    feedback.innerText = "⭕ Excellent!";
+    feedback.style.color = "green";
+    
+    speak("Good job. Let's go on to the next question.");
+    setTimeout(() => { gameIndex++; nextGameQuestion(); }, 3000); 
+  } else {
+    feedback.innerText = `❌ 正解: ${correct.meaning}`;
+    feedback.style.color = "red";
+    
+    speak("Try again.");
+    setTimeout(() => { gameIndex++; nextGameQuestion(); }, 1500);
+  }
+}
+
+// ===== 共通・音声（★ここを改良しました★） =====
+// 自動判定: 日本語が含まれていれば日本語音声、それ以外は英語音声
+function speak(t, explicitLang){ 
+  if(!t) return; 
+  speechSynthesis.cancel(); 
+  const u = new SpeechSynthesisUtterance(t);
+  
+  if(explicitLang){
+    u.lang = explicitLang;
+  } else {
+    // ひらがな・カタカナ・漢字が含まれるか判定
+    u.lang = /[ぁ-んァ-ン一-龠]/.test(t) ? "ja-JP" : "en-US";
+  }
+  
+  u.rate = 1.0;
+  speechSynthesis.speak(u); 
+}
+function speakQuestion(){ 
+  if(appMode==='study') speak(document.getElementById("questionWord").innerText);
+  else speak(document.getElementById("gameQuestionWord").innerText);
+}
+function speakAnswer(){ 
+  if(appMode==='study') speak(document.getElementById("answerMeaning").innerText);
+}
+
+// ===== 画面遷移 =====
+async function endStudy(auto){
+  if(studyStartTime){
+    await saveStudyTime(Math.floor((Date.now()-studyStartTime)/1000));
+    studyStartTime=null;
+  }
+  if(!auto && !confirm("学習を終了して一覧に戻りますか？")) return;
+  loadAllLists();
+}
+function show(id){
+  document.querySelectorAll(".screen").forEach(s=>s.style.display="none");
+  document.getElementById(id).style.display="block";
+}
+
+loadAllLists();
+</script>
+</body>
+</html>

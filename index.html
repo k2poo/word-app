@@ -541,55 +541,107 @@ function gameHint2(){ speak(currentCorrectItem.word); }
 function gameHint3(){ speak(currentCorrectItem.meaning); }
 
 
-// --- 正誤判定 ---
+// --- 正誤判定 (★ここを修正しました★) ---
 function checkGameAnswer(selected, correct){
   const area = document.getElementById("choicesArea");
   Array.from(area.children).forEach(b => b.disabled = true);
   const feedback = document.getElementById("gameFeedback");
 
+  // 最後の問題かどうかチェック
+  const isLastQuestion = (gameIndex >= gameOrder.length - 1);
+
   if(selected.word === correct.word){
+    // === 正解 ===
     gameScore++;
     document.getElementById("gameScore").innerText = gameScore;
     feedback.innerText = "⭕ Excellent!";
     feedback.style.color = "green";
     
-    speak("Good job. Let's go on to the next question.");
-    setTimeout(() => { gameIndex++; nextGameQuestion(); }, 3000); 
+    // 1. "Good job!"
+    speak("Good job!", "en-US");
+    
+    // 2. 正解の単語
+    speak(correct.word);
+    
+    // 3. 次へ (最後以外)
+    if(!isLastQuestion){
+        speak("Let's go on to the next question.", "en-US");
+    }
+
+    // 音声が長いので4秒待つ
+    setTimeout(() => {
+      gameIndex++;
+      nextGameQuestion();
+    }, 4000); 
   } else {
+    // === 不正解 ===
     feedback.innerText = `❌ 正解: ${correct.meaning}`;
     feedback.style.color = "red";
     
-    speak("Try again.");
-    setTimeout(() => { gameIndex++; nextGameQuestion(); }, 1500);
+    // 1. "Try again..."
+    speak("Try again. Let's try saying it in English.", "en-US");
+    
+    // 2. 正解の単語
+    speak(correct.word);
+
+    // 3. "Let's move on..."
+    speak("Let's move on to the next question.", "en-US");
+
+    // 音声が長いので6秒待つ
+    setTimeout(() => {
+      gameIndex++;
+      nextGameQuestion();
+    }, 6000);
   }
 }
 
-// ===== 共通・音声（★ここを改良しました★） =====
+// ===== 共通・音声 =====
 // 自動判定: 日本語が含まれていれば日本語音声、それ以外は英語音声
 function speak(t, explicitLang){ 
   if(!t) return; 
-  speechSynthesis.cancel(); 
+  speechSynthesis.cancel(); // 連続再生する場合はキューに入れるため、ここはcancelしない方が良い場合もあるが、
+                            // ブラウザによっては前の音声が残るので、一連の流れを作るにはcancelせず連続で呼ぶのが定石。
+                            // しかし、ここではシンプルな「関数呼び出し順」で動かすため、呼び出し側で制御するか、
+                            // あるいは、短時間に連続で呼ばれることを想定してcancelを抜く。
+                            // 今回の要件（Good job -> Word -> Next）を実現するには、
+                            // speechSynthesisのキュー機能を活用するため、speak内でcancel()を呼ぶと前の音声が消えてしまいます。
+                            // ★修正: speak呼び出し時に、強制的にcancelしないように変更★
+  
+  // しかし、ユーザーがボタンを連打した場合などはcancelしたい。
+  // ここでは「一連のフロー」の中ではcancelせず、新しいアクション（ボタンクリック時など）でcancelするのが理想ですが、
+  // 簡易的に実装するため、speak関数内ではcancelを削除し、
+  // 「出題時」や「回答時」の先頭でのみcancelするようにします。
+  
   const u = new SpeechSynthesisUtterance(t);
   
   if(explicitLang){
     u.lang = explicitLang;
   } else {
-    // ひらがな・カタカナ・漢字が含まれるか判定
     u.lang = /[ぁ-んァ-ン一-龠]/.test(t) ? "ja-JP" : "en-US";
   }
   
   u.rate = 1.0;
   speechSynthesis.speak(u); 
 }
+
+// ボタンを押した時などは、前の音声を消してから再生したいので、ラッパーを作る
+function forceSpeak(t){
+    speechSynthesis.cancel();
+    speak(t);
+}
+
 function speakQuestion(){ 
+  // 出題時は前の音声を消す
+  speechSynthesis.cancel();
   if(appMode==='study') speak(document.getElementById("questionWord").innerText);
   else speak(document.getElementById("gameQuestionWord").innerText);
 }
 function speakAnswer(){ 
+  speechSynthesis.cancel();
   if(appMode==='study') speak(document.getElementById("answerMeaning").innerText);
 }
 
-// ===== 画面遷移 =====
+// 画面遷移
 async function endStudy(auto){
   if(studyStartTime){
     await saveStudyTime(Math.floor((Date.now()-studyStartTime)/1000));

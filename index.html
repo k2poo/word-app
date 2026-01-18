@@ -146,22 +146,20 @@ button:active{ transform: scale(0.96); opacity: 0.8; }
   margin-bottom: 2vw;
 }
 
-/* エラー表示用 */
-#globalError {
-    color: white;
-    background: #ff4444;
-    padding: 20px;
-    margin: 20px;
-    border-radius: 10px;
-    display: none;
-    font-weight: bold;
+/* 読み込みステータス表示 */
+#loadingStatus {
+    font-size: 3vw;
+    color: #666;
+    text-align: center;
+    padding: 2vw;
+    background: #f8f9fa;
+    margin-bottom: 2vw;
+    border-radius: 8px;
 }
 </style>
 </head>
 
 <body>
-
-<div id="globalError"></div>
 
 <div id="listScreen" class="screen" style="display:block;">
   <div class="card">
@@ -177,14 +175,16 @@ button:active{ transform: scale(0.96); opacity: 0.8; }
     <div style="text-align:center; font-size:3.5vw; color:#888; margin-bottom:2vw;">
       モードを選んでから<br>下のリストを押してください
     </div>
+
+    <div id="loadingStatus">準備中...</div>
   </div>
 
   <div class="card">
     <h3>📘 基本コース</h3>
-    <div id="basicList" style="text-align:center;">読込中...</div>
+    <div id="basicList" style="text-align:center;"></div>
 
     <h3>📕 中級コース</h3>
-    <div id="intermediateList" style="text-align:center;">読込中...</div>
+    <div id="intermediateList" style="text-align:center;"></div>
   </div>
 
   <div class="card">
@@ -236,45 +236,43 @@ button:active{ transform: scale(0.96); opacity: 0.8; }
 </div>
 
 <div id="infoBar">
-  <div id="studyInfo">読込中...</div>
+  <div id="studyInfo">...</div>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
-// === 安全装置: エラーをキャッチして表示 ===
-window.onerror = function(msg, url, line){
-    const div = document.getElementById("globalError");
-    div.style.display = "block";
-    div.innerHTML = "⚠️ エラーが発生しました:<br>" + msg + "<br>(行: " + line + ")";
+// ===== ★バックアップ用データ (ファイル読込失敗時に使用) ★ =====
+const BACKUP_DATA = {
+  basic: [
+    {title: "基本単語1(Backup)", file:"backup_basic", data:[{word:"Apple",meaning:"りんご"},{word:"Dog",meaning:"犬"},{word:"Cat",meaning:"猫"},{word:"Run",meaning:"走る"}]},
+    {title: "基本単語2(Backup)", file:"backup_basic2", data:[{word:"Hello",meaning:"こんにちは"},{word:"Thank you",meaning:"ありがとう"}]}
+  ],
+  inter: [
+    {title: "中級単語1(Backup)", file:"backup_inter", data:[{word:"Understand",meaning:"理解する"},{word:"Difficult",meaning:"難しい"}]}
+  ]
 };
 
-// ===== Firebase 初期化 =====
+// ===== Firebase =====
 try {
   firebase.initializeApp({
     apiKey: "AIzaSyAYEEHtYUdDylKlSwy4mX2S2mIK5Hs3vJA",
     authDomain: "english-word-app-f7101.firebaseapp.com",
     projectId: "english-word-app-f7101",
   });
-} catch(e) {
-  console.error(e);
-}
+} catch(e) { console.error(e); }
 const db = firebase.firestore();
 
-// ===== 共通変数 =====
+// ===== 変数 =====
 let userId = localStorage.getItem("userId");
-if(!userId){
-  userId = crypto.randomUUID();
-  localStorage.setItem("userId", userId);
-}
-
+if(!userId){ userId = crypto.randomUUID(); localStorage.setItem("userId", userId); }
 let studyStartTime = null;
 let currentList = [];
 let appMode = 'study'; 
-let currentCorrectItem = null; // ゲーム用の正解保持
+let currentCorrectItem = null;
 
-// ===== 時間ユーティリティ =====
+// ===== ユーティリティ =====
 const today = () => new Date().toISOString().slice(0,10);
 const formatTime = sec => {
   const m = Math.floor(sec/60);
@@ -282,11 +280,19 @@ const formatTime = sec => {
   return h ? `${h}時間${m%60}分` : `${m}分`;
 };
 
-// ===== CSV読み込み =====
+// ===== CSV読み込み (タイムアウト付き) =====
 async function loadCSV(path){
+  // 内蔵バックアップデータの判別
+  if(path.startsWith("backup_")){ return null; }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 2000); // 2秒で諦める
+
   try {
-    const res = await fetch(path + "?t=" + Date.now());
-    if (!res.ok) throw new Error(`ファイルが見つかりません (${res.status})`);
+    const res = await fetch(path + "?t=" + Date.now(), { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (!res.ok) throw new Error("404");
+    
     let text = await res.text();
     text = text.replace(/^\uFEFF/, ""); 
     const lines = text.trim().split("\n");
@@ -299,13 +305,11 @@ async function loadCSV(path){
       return o;
     });
   } catch(e) {
-    console.error(e);
-    // エラーでも止まらないようにnullを返す
-    return null;
+    return null; // 失敗したらnullを返す
   }
 }
 
-// ===== Firestore =====
+// ===== Firestore関連 =====
 async function saveClearCount(title){
   try{
     const ref=db.collection("users").doc(userId).collection("clearedLists").doc(title);
@@ -333,7 +337,7 @@ async function loadStudyTimes(){
   }catch(e){return {};}
 }
 
-// ===== 表示・モード管理 =====
+// ===== 表示更新 =====
 async function updateStudyInfo(){
   const d=await loadStudyTimes();
   const t=d[today()]||0;
@@ -365,241 +369,35 @@ function setMode(mode){
   document.getElementById('modeGame').className = mode === 'game' ? 'mode-option mode-active' : 'mode-option';
 }
 
-// ===== リスト読込（メイン） =====
+// ===== ★リスト読込 (ハイブリッド方式)★ =====
 async function loadAllLists(){
-  try {
-    const basic = await loadCSV("lists/index.csv");
-    const inter = await loadCSV("lists2/index.csv");
-    const counts = await loadClearCounts();
-    
-    const make=(data, folder, id)=>{
-      const c=document.getElementById(id);
-      c.innerHTML="";
-      if(!data){ c.innerHTML = "<div style='color:red; font-size:3vw;'>読込失敗<br>フォルダを確認して下さい</div>"; return; }
-      if(data.length === 0) { c.innerHTML = "<div style='color:#ccc'>リストがありません</div>"; return; }
-      data.forEach(i=>{
-        const b=document.createElement("button");
-        b.className="btn-blue";
-        const title = i.title || "No Title";
-        b.innerText = title + (counts[title]?`（${counts[title]}回クリア）`:"");
-        b.onclick = () => startSession(folder, title, i.file);
-        c.appendChild(b);
-      });
-    };
-    
-    make(basic, "lists", "basicList");
-    make(inter, "lists2", "intermediateList");
-    await updateStudyInfo();
-    await drawStudyChart();
-    show("listScreen");
+  const statusDiv = document.getElementById("loadingStatus");
+  statusDiv.innerText = "データ読込中...";
+  statusDiv.style.color = "blue";
 
-  } catch(e) {
-    alert("初期化エラー: " + e);
-  }
-}
+  // 1. まずファイルを読みに行く
+  let basic = await loadCSV("lists/index.csv");
+  let inter = await loadCSV("lists2/index.csv");
+  
+  // 2. 失敗していたらバックアップを使う
+  let usedBackup = false;
+  if(!basic) { basic = BACKUP_DATA.basic; usedBackup = true; }
+  if(!inter) { inter = BACKUP_DATA.inter; usedBackup = true; }
 
-async function startSession(folder, title, file){
-  studyStartTime = Date.now();
-  currentList = await loadCSV(`${folder}/${file}`);
-  if(!currentList || currentList.length === 0){
-    alert("データ読込に失敗しました。\nファイル名やCSVの中身を確認してください。");
-    return;
-  }
-  if(appMode === 'study'){
-    startStudyMode(title);
+  // 3. ステータス表示
+  if(usedBackup){
+    statusDiv.innerHTML = "⚠️ ファイル読込失敗。<br>予備データで起動しました。<br>(フォルダ構成を確認してください)";
+    statusDiv.style.color = "red";
   } else {
-    startGameMode(title);
+    statusDiv.innerText = "✅ 読込完了";
+    statusDiv.style.color = "green";
+    setTimeout(()=>statusDiv.style.display="none", 2000);
   }
-}
 
-// ============================================
-// ⚡ 速攻モード
-// ============================================
-let studyOrder=[], studyIndex=0, dontKnow=[], studyTitle="", round=1;
-
-function startStudyMode(t){
-  studyTitle=t; round=1; studyIndex=0; dontKnow=[];
-  studyOrder=[...currentList.keys()].sort(()=>Math.random()-0.5);
-  show("studyScreen");
-  nextQuestion();
-}
-function nextQuestion(){
-  if(studyIndex>=studyOrder.length){
-    if(!dontKnow.length){
-      saveClearCount(studyTitle);
-      alert("すべて正解です！クリア！");
-      return endStudy(true);
-    }
-    currentList=dontKnow.map(i=>currentList[i]);
-    dontKnow=[]; round++; studyIndex=0;
-    studyOrder=[...currentList.keys()];
-  }
-  const it=currentList[studyOrder[studyIndex]];
-  document.getElementById("questionWord").innerText=it.word;
-  document.getElementById("answerMeaning").innerText="";
-}
-function markKnow(){ 
-  showAnswer(); speakAnswer(); 
-  setTimeout(()=>{studyIndex++;nextQuestion();},700); 
-}
-function markDontKnow(){ 
-  dontKnow.push(studyOrder[studyIndex]); 
-  showAnswer(); speakAnswer(); 
-  setTimeout(()=>{studyIndex++;nextQuestion();},1200); 
-}
-function showAnswer(){ 
-  document.getElementById("answerMeaning").innerText=currentList[studyOrder[studyIndex]].meaning; 
-}
-
-// ============================================
-// 🎮 ゲームモード（リスニング強化版）
-// ============================================
-let gameIndex=0, gameScore=0, gameOrder=[];
-
-function startGameMode(t){
-  gameIndex=0; gameScore=0;
-  gameOrder=[...currentList.keys()].sort(()=>Math.random()-0.5);
-  document.getElementById("gameScore").innerText = gameScore;
-  show("gameScreen");
-  nextGameQuestion();
-}
-
-function nextGameQuestion(){
-  document.getElementById("gameFeedback").innerText = "";
-  if(gameIndex >= gameOrder.length){
-    alert(`ゲーム終了！\nあなたのスコア: ${gameScore} / ${gameOrder.length}`);
-    return endStudy(true);
-  }
+  const counts = await loadClearCounts();
   
-  const correctIdx = gameOrder[gameIndex];
-  currentCorrectItem = currentList[correctIdx];
-  
-  // 文字を隠し、メッセージを表示
-  document.getElementById("gameQuestionWord").style.display = "none";
-  document.getElementById("gameQuestionWord").innerText = currentCorrectItem.word;
-  document.getElementById("listeningMsg").style.display = "block";
-
-  // 音声出題
-  setTimeout(() => speak(currentCorrectItem.word), 400);
-
-  // 4択生成
-  let choices = [currentCorrectItem];
-  let loop=0;
-  while(choices.length < 4 && loop < 100){
-    loop++;
-    const r = Math.floor(Math.random() * currentList.length);
-    const item = currentList[r];
-    if(!choices.includes(item) && item.meaning !== currentCorrectItem.meaning){
-      choices.push(item);
-    }
-  }
-  choices.sort(()=>Math.random()-0.5);
-
-  const area = document.getElementById("choicesArea");
-  area.innerHTML = "";
-  
-  choices.forEach(c => {
-    const btn = document.createElement("button");
-    btn.className = "btn-choice";
-    btn.innerText = c.meaning;
-    btn.onclick = () => checkGameAnswer(c, currentCorrectItem);
-    area.appendChild(btn);
-  });
-}
-
-// --- ヒント機能 ---
-function gameHint1(){
-  // ヒント1: 文字を表示して音声も流す
-  document.getElementById("listeningMsg").style.display = "none";
-  document.getElementById("gameQuestionWord").style.display = "block";
-  speak(currentCorrectItem.word);
-}
-
-function gameHint2(){
-  // ヒント2: 音声のみ再再生
-  speak(currentCorrectItem.word);
-}
-
-function gameHint3(){
-  // ヒント3: 答え(意味)の音声を流す
-  const meaning = currentCorrectItem.meaning;
-  const lang = isJapanese(meaning) ? 'ja-JP' : 'en-US';
-  speak(meaning, lang);
-}
-
-// 日本語判定
-function isJapanese(text) {
-  return /[ぁ-んァ-ン一-龠]/.test(text);
-}
-
-// --- 正誤判定 ---
-function checkGameAnswer(selected, correct){
-  const area = document.getElementById("choicesArea");
-  Array.from(area.children).forEach(b => b.disabled = true);
-  const feedback = document.getElementById("gameFeedback");
-
-  if(selected.word === correct.word){
-    // 正解
-    gameScore++;
-    document.getElementById("gameScore").innerText = gameScore;
-    feedback.innerText = "⭕ Excellent!";
-    feedback.style.color = "green";
-    
-    // 正解: Good job...
-    speak("Good job. Let's go on to the next question.");
-
-    setTimeout(() => {
-      gameIndex++;
-      nextGameQuestion();
-    }, 3000); 
-  } else {
-    // 不正解
-    feedback.innerText = `❌ 正解: ${correct.meaning}`;
-    feedback.style.color = "red";
-    
-    // 不正解: Try again.
-    speak("Try again.");
-
-    setTimeout(() => {
-      gameIndex++;
-      nextGameQuestion();
-    }, 1500);
-  }
-}
-
-// ===== 共通・音声 =====
-function speak(t, lang="en-US"){ 
-  if(!t) return; 
-  speechSynthesis.cancel(); 
-  const u = new SpeechSynthesisUtterance(t);
-  u.lang = lang;
-  u.rate = 1.0;
-  speechSynthesis.speak(u); 
-}
-function speakQuestion(){ 
-  if(appMode==='study') speak(document.getElementById("questionWord").innerText);
-  else speak(document.getElementById("gameQuestionWord").innerText);
-}
-function speakAnswer(){ 
-  if(appMode==='study') speak(document.getElementById("answerMeaning").innerText);
-}
-
-// ===== 画面遷移 =====
-async function endStudy(auto){
-  if(studyStartTime){
-    await saveStudyTime(Math.floor((Date.now()-studyStartTime)/1000));
-    studyStartTime=null;
-  }
-  if(!auto && !confirm("学習を終了して一覧に戻りますか？")) return;
-  loadAllLists();
-}
-function show(id){
-  document.querySelectorAll(".screen").forEach(s=>s.style.display="none");
-  document.getElementById(id).style.display="block";
-}
-
-// 起動
-loadAllLists();
-</script>
-</body>
-</html>
+  const make=(data, folder, id)=>{
+    const c=document.getElementById(id);
+    c.innerHTML="";
+    data.forEach(i=>{
+      const b=document

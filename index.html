@@ -13,7 +13,7 @@ body{
   padding:2vw;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
-  padding-bottom: 25vw; /* 下部バーのために余白を多めに */
+  padding-bottom: 25vw;
 }
 .screen{ display:none; }
 .card{
@@ -76,6 +76,7 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
   border-radius: 10px;
   outline: none;
   letter-spacing: 0.1em;
+  background: #fdfdfd;
 }
 #inputAnswer:focus {
   border-color: #ff9bcd;
@@ -106,6 +107,15 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
   word-break: break-word;
   min-height: 12vw; 
 }
+/* 綴りモード用：意味の表示 */
+.meaning-display {
+  font-size: 6vw;
+  color: #0077ff;
+  text-align: center;
+  margin: 2vw 0 4vw 0;
+  font-weight: bold;
+}
+
 .listening-msg {
   font-size: 5vw;
   color: #ff9bcd;
@@ -153,7 +163,7 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
 
 .mode-switch {
   display: flex;
-  justify-content: space-between; /* 均等配置 */
+  justify-content: space-between;
   margin-bottom: 4vw;
   background: #eee;
   border-radius: 25px;
@@ -166,7 +176,7 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
   padding: 2.5vw 0.5vw;
   border-radius: 20px;
   cursor: pointer;
-  font-size: 3.2vw; /* 文字サイズ調整 */
+  font-size: 3.2vw;
   color: #888;
   transition: 0.3s;
   white-space: nowrap;
@@ -177,16 +187,8 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
   font-weight: bold;
   box-shadow: 0 2px 5px rgba(0,0,0,0.15);
 }
-/* 切迫モードの色設定 */
-#modeUrgent.mode-active {
-  background: #ff6b6b;
-  color: white;
-}
-/* 綴りモードの色設定 */
-#modeSpelling.mode-active {
-  background: #9bd8ff;
-  color: #004085;
-}
+#modeUrgent.mode-active { background: #ff6b6b; color: white; }
+#modeSpelling.mode-active { background: #9bd8ff; color: #004085; }
 
 .score-board {
   text-align: center;
@@ -206,9 +208,7 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
     border-radius: 8px;
 }
 
-/* =========================================
-   デスクトップPC・タブレット向け (幅768px以上)
-   ========================================= */
+/* PC/Tablet */
 @media (min-width: 768px) {
   body {
     max-width: 800px;
@@ -218,76 +218,22 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
     font-size: 16px;
     padding-bottom: 120px;
   }
-  .card {
-    padding: 30px;
-    margin-bottom: 30px;
-    border-radius: 12px;
-  }
-  h3 {
-    font-size: 24px;
-    margin: 20px 0 15px 0;
-    border-left-width: 6px;
-  }
-  button {
-    font-size: 18px;
-    padding: 15px 20px;
-    margin: 8px;
-    border-radius: 10px;
-  }
-  .mode-switch {
-    margin-bottom: 20px;
-    padding: 10px;
-  }
-  .mode-option {
-    font-size: 16px;
-    padding: 10px;
-  }
-  .big {
-    font-size: 64px;
-    margin: 40px 0;
-    min-height: 80px;
-  }
-  .btn-choice {
-    font-size: 20px;
-    padding: 20px;
-    margin: 10px 0;
-  }
-  .input-area #inputAnswer {
-    font-size: 48px;
-    width: 300px;
-  }
-  .btn-hint {
-    font-size: 16px;
-    padding: 10px;
-    width: 30%;
-  }
-  #infoBar {
-    width: 800px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 16px;
-    padding: 15px;
-    border-radius: 12px 12px 0 0;
-  }
+  .card { padding: 30px; margin-bottom: 30px; }
+  h3 { font-size: 24px; margin: 20px 0 15px 0; }
+  button { font-size: 18px; padding: 15px 20px; margin: 8px; }
+  .mode-switch { margin-bottom: 20px; padding: 10px; }
+  .mode-option { font-size: 16px; padding: 10px; }
+  .big { font-size: 64px; margin: 40px 0; min-height: 80px; }
+  .btn-choice { font-size: 20px; padding: 20px; margin: 10px 0; }
+  .input-area #inputAnswer { font-size: 48px; width: 300px; }
+  .meaning-display { font-size: 32px; margin: 20px 0; }
+  .btn-hint { font-size: 16px; padding: 10px; width: 30%; }
+  #infoBar { width: 800px; left: 50%; transform: translateX(-50%); font-size: 16px; padding: 15px; }
   .auth-msg { font-size: 14px; margin-bottom: 8px; }
   .auth-btn { font-size: 16px; margin-top: 5px; }
-  
-  #basicList, #intermediateList {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
-  .btn-blue {
-    width: 100%;
-    box-sizing: border-box;
-    margin: 0;
-  }
-  .listening-msg {
-    font-size: 24px;
-  }
-  .score-board {
-    font-size: 32px;
-  }
+  #basicList, #intermediateList { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .listening-msg { font-size: 24px; }
+  .score-board { font-size: 32px; }
 }
 </style>
 </head>
@@ -370,12 +316,13 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
 
 <div id="spellingScreen" class="screen card" style="min-height: 80vh;">
   <div class="score-board">ROUND: <span id="spellingRoundDisplay">1</span></div>
-  <div style="text-align:center; color:#555; margin-bottom:2vw;">空欄を埋めてください</div>
-
-  <div class="big" id="spellingQuestionText" style="margin-bottom:0;" onclick="forceSpeak(currentCorrectItem.word)"></div>
+  
+  <div id="spellingMeaning" class="meaning-display"></div>
+  
+  <div class="big" id="spellingQuestionText" style="margin-bottom:0; font-family: monospace;" onclick="forceSpeak(currentCorrectItem.word)"></div>
   
   <div class="input-area">
-    <input type="text" id="inputAnswer" maxlength="2" autocomplete="off">
+    <input type="text" id="inputAnswer" maxlength="2" autocomplete="off" placeholder="__">
   </div>
   
   <div style="text-align:center;">
@@ -429,7 +376,6 @@ const db = firebase.firestore();
 const auth = firebase.auth();
 
 // ===== 変数 =====
-// ローカルID（未ログイン時用）
 let localId = localStorage.getItem("localId");
 if(!localId){ localId = crypto.randomUUID(); localStorage.setItem("localId", localId); }
 
@@ -448,8 +394,8 @@ const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 let spellingOrder = [];
 let spellingIndex = 0;
 let spellingRound = 1;
-let spellingMissList = []; // 間違えた問題を保存
-let currentMaskedData = null; // { displayed: "ora__ge", answer: "ng" }
+let spellingMissList = []; 
+let currentMaskedData = null; 
 
 // ===== 認証・同期ロジック (Auth) =====
 auth.onAuthStateChanged(async (user) => {
@@ -725,7 +671,6 @@ function nextGameQuestion(){
   // 音声出題
   setTimeout(() => forceSpeak(currentCorrectItem.word), 400);
 
-  // 切迫モードのタイマー処理
   stopUrgentTimer();
   if(appMode === 'urgent') {
     const startDelay = 2000;
@@ -739,7 +684,6 @@ function nextGameQuestion(){
     urgentTimeouts.push(setTimeout(handleTimeUp, phase2Start + 1200)); 
   }
 
-  // 4択生成
   let choices = [currentCorrectItem];
   let loop=0;
   while(choices.length < 4 && loop < 100){
@@ -772,7 +716,6 @@ function gameHint1(){
 function gameHint2(){ forceSpeak(currentCorrectItem.word); }
 function gameHint3(){ forceSpeak(currentCorrectItem.meaning); }
 
-// ===== ゲーム判定 =====
 function checkGameAnswer(selected, correct){
   stopUrgentTimer();
   
@@ -785,7 +728,6 @@ function checkGameAnswer(selected, correct){
   const correctAudioText = correct.meaning;
 
   if(selected.word === correct.word){
-    // 正解
     gameScore++;
     document.getElementById("gameScore").innerText = gameScore;
     feedback.innerText = "⭕ Excellent!";
@@ -796,21 +738,18 @@ function checkGameAnswer(selected, correct){
     if(!isLastQuestion){
       audioSequence.push({text: "Let's go on to the next question.", lang: "en-US"});
     }
-
     playSequence(audioSequence, () => {
       gameIndex++;
       nextGameQuestion();
     });
 
   } else {
-    // 不正解
     feedback.innerText = `❌ 正解: ${correct.meaning}`;
     feedback.style.color = "red";
     
     audioSequence.push({text: "Try again.", lang: "en-US"});
     audioSequence.push({text: correctAudioText, lang: null}); 
     audioSequence.push({text: "Next.", lang: "en-US"});
-
     playSequence(audioSequence, () => {
       gameIndex++;
       nextGameQuestion();
@@ -819,7 +758,7 @@ function checkGameAnswer(selected, correct){
 }
 
 // ============================================
-// ✏️ 綴り（スペリング）モード
+// ✏️ 綴り（スペリング）モード (修正版)
 // ============================================
 
 function startSpellingMode(t){
@@ -827,7 +766,6 @@ function startSpellingMode(t){
   spellingRound = 1;
   spellingIndex = 0;
   spellingMissList = [];
-  // 1巡目は全単語をランダムに
   spellingOrder = [...currentList.keys()].sort(()=>Math.random()-0.5);
   
   show("spellingScreen");
@@ -839,19 +777,16 @@ function nextSpellingQuestion(){
   document.getElementById("inputAnswer").value = "";
   document.getElementById("spellingRoundDisplay").innerText = spellingRound;
 
-  // ラウンド終了判定
   if(spellingIndex >= spellingOrder.length){
     if(spellingRound === 1 && spellingMissList.length > 0){
-      // 2巡目へ移行
       alert("1巡目終了！\n間違えた単語のみ再テストします。");
       spellingRound = 2;
       spellingOrder = spellingMissList.map(item => currentList.indexOf(item));
-      spellingMissList = []; // クリア
+      spellingMissList = []; 
       spellingIndex = 0;
       nextSpellingQuestion();
       return;
     } else {
-      // 完全に終了
       saveClearCount(studyTitle);
       alert("トレーニング終了です！お疲れ様でした！");
       return endStudy(true);
@@ -861,25 +796,25 @@ function nextSpellingQuestion(){
   const currentIdx = spellingOrder[spellingIndex];
   currentCorrectItem = currentList[currentIdx];
 
-  // 穴埋め問題を作成
+  // 穴埋め作成
   currentMaskedData = createMaskedWord(currentCorrectItem.word);
+  
+  // ★ ここで意味を表示 ★
+  document.getElementById("spellingMeaning").innerText = currentCorrectItem.meaning;
+  
+  // ★ 穴埋め単語を表示 ★
   document.getElementById("spellingQuestionText").innerText = currentMaskedData.displayed;
   
-  // 入力欄の設定（答えの文字数に合わせるが、基本は2文字）
   const input = document.getElementById("inputAnswer");
   input.maxLength = currentMaskedData.answer.length;
   input.focus();
 
-  // 音声を流す
+  // ★ 音声は英語（Word）を再生 ★
   setTimeout(() => forceSpeak(currentCorrectItem.word), 400);
 }
 
-// 穴埋め作成ロジック
 function createMaskedWord(word){
-  // 子音(Consonant)の正規表現 (yは文脈によるが簡易的に子音扱いとする)
   const isCon = c => /[bcdfghjklmnpqrstvwxyz]/i.test(c);
-  
-  // 連続する子音の開始位置候補を探す
   let candidates = [];
   for(let i=0; i < word.length - 1; i++){
     if(isCon(word[i]) && isCon(word[i+1])){
@@ -891,10 +826,8 @@ function createMaskedWord(word){
   let targetLen = 2;
 
   if(candidates.length > 0){
-    // 候補からランダムに1つ選ぶ
     targetIndex = candidates[Math.floor(Math.random() * candidates.length)];
   } else {
-    // 条件に合わない場合、最初の2文字を隠す（単語が1文字なら1文字だけ）
     targetIndex = 0;
     targetLen = Math.min(2, word.length);
   }
@@ -912,11 +845,9 @@ function checkSpellingAnswer(){
   const feedback = document.getElementById("spellingFeedback");
 
   if(userVal === correctVal){
-    // 正解
     feedback.innerText = "⭕ Correct!";
     feedback.style.color = "green";
     
-    // 正解音声を流して次へ
     forceSpeak("Good!");
     setTimeout(() => {
         spellingIndex++;
@@ -924,18 +855,14 @@ function checkSpellingAnswer(){
     }, 1000);
     
   } else {
-    // 不正解
     feedback.innerText = `❌ 正解は "${currentMaskedData.answer}" (${currentCorrectItem.word})`;
     feedback.style.color = "red";
     
-    // 1巡目の場合、間違えたリストに追加
     if(spellingRound === 1){
         if(!spellingMissList.includes(currentCorrectItem)){
             spellingMissList.push(currentCorrectItem);
         }
     }
-
-    // 音声と正解を表示して次へ
     forceSpeak(currentCorrectItem.word);
     setTimeout(() => {
         spellingIndex++;
@@ -944,7 +871,6 @@ function checkSpellingAnswer(){
   }
 }
 
-
 // === 切迫モード便利関数 ===
 function playBeep() {
   if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -952,12 +878,10 @@ function playBeep() {
   const gain = audioCtx.createGain();
   osc.connect(gain);
   gain.connect(audioCtx.destination);
-  
   osc.type = 'square';
   osc.frequency.setValueAtTime(880, audioCtx.currentTime); 
   gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
   gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.1);
-
   osc.start();
   osc.stop(audioCtx.currentTime + 0.1);
 }
@@ -971,38 +895,32 @@ function handleTimeUp() {
   const feedback = document.getElementById("gameFeedback");
   feedback.innerText = "⏰ TIME UP!!";
   feedback.style.color = "red";
-
   const area = document.getElementById("choicesArea");
   Array.from(area.children).forEach(b => b.disabled = true);
-
   let audioSequence = [];
   audioSequence.push({text: "Time's up.", lang: "en-US"});
   audioSequence.push({text: currentCorrectItem.meaning, lang: null}); 
   audioSequence.push({text: "Next.", lang: "en-US"});
-
   playSequence(audioSequence, () => {
     gameIndex++;
     nextGameQuestion();
   });
 }
 
-// ===== 連続再生用 =====
+// ===== 再生関連 =====
 function playSequence(list, onComplete){
   speechSynthesis.cancel();
   let index = 0;
-
   function playNext(){
     if(index >= list.length){
       if(onComplete) onComplete();
       return;
     }
-
     const item = list[index];
     const u = new SpeechSynthesisUtterance(item.text);
     if(item.lang) u.lang = item.lang;
     else u.lang = /[ぁ-んァ-ン一-龠]/.test(item.text) ? "ja-JP" : "en-US";
     u.rate = 1.0;
-
     u.onend = function(){
       index++;
       setTimeout(playNext, 500);
@@ -1011,14 +929,11 @@ function playSequence(list, onComplete){
       index++;
       playNext();
     };
-
     speechSynthesis.speak(u);
   }
-
   playNext();
 }
 
-// ===== 単発再生用 =====
 function forceSpeak(t){
     if(!t) return;
     speechSynthesis.cancel();
@@ -1037,9 +952,8 @@ function speakAnswer(){
   if(appMode==='study') forceSpeak(document.getElementById("answerMeaning").innerText);
 }
 
-// 画面遷移
 async function endStudy(auto){
-  stopUrgentTimer(); // 念のためタイマー停止
+  stopUrgentTimer();
   if(studyStartTime){
     await saveStudyTime(Math.floor((Date.now()-studyStartTime)/1000));
     studyStartTime=null;

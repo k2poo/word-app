@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>英単語暗記アプリ (Spelling Fix)</title>
+<title>英単語暗記アプリ (Spelling Audio Fix)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
 <style>
@@ -551,17 +551,15 @@ function setMode(mode){
     const el = document.getElementById('mode' + m.charAt(0).toUpperCase() + m.slice(1));
     if(el) el.className = 'mode-option' + (mode === m ? ' mode-active' : '');
   });
-  // モード切り替え時にリスト表示を更新
   updateListVisibility();
 }
 
 function updateListVisibility() {
   const isSpelling = (appMode === 'spelling');
-  // 綴りモードなら中級コースを隠す
   const hInter = document.getElementById('headerInter');
   const lInter = document.getElementById('intermediateList');
   if(hInter) hInter.style.display = isSpelling ? 'none' : 'block';
-  if(lInter) lInter.style.display = isSpelling ? 'none' : 'grid'; // PCはgrid
+  if(lInter) lInter.style.display = isSpelling ? 'none' : 'grid'; 
 }
 
 // ===== リスト読込 =====
@@ -609,7 +607,7 @@ async function loadAllLists(){
   make(basic, "lists", "basicList");
   make(inter, "lists2", "intermediateList");
   
-  updateListVisibility(); // リスト生成後に表示制御
+  updateListVisibility(); 
 
   await updateStudyInfo();
   await drawStudyChart();
@@ -922,11 +920,9 @@ function checkSpellingAnswer(){
   const normalizedInput = toHalfWidth(rawInput).trim();
   const correctVal = currentMaskedData.answer;
 
-  // 音声リスト作成
   let audioSequence = [];
   
-  // 次の問題がまだあるか（最終問題かどうか）
-  // ※ 1巡目の最後、または2巡目がある場合の最後など
+  // 次の問題があるか
   const hasNext = (spellingIndex < spellingOrder.length - 1);
 
   if (normalizedInput === correctVal) {
@@ -935,15 +931,7 @@ function checkSpellingAnswer(){
       feedback.style.color = "green";
       
       audioSequence.push({text: "Good job!", lang: "en-US"});
-      if(hasNext) {
-        audioSequence.push({text: "Next question.", lang: "en-US"});
-      }
-
-      playSequence(audioSequence, () => {
-          spellingIndex++;
-          nextSpellingQuestion();
-      });
-
+      
   } else {
       // === 不正解または惜しい ===
       let isNearly = false;
@@ -968,27 +956,26 @@ function checkSpellingAnswer(){
       
       audioSequence.push({text: msgText, lang: "en-US"});
 
-      // 不正解(Nearly以外)ならリスト追加
-      if(!isNearly) {
-          if(spellingRound === 1){
-            if(!spellingMissList.includes(currentCorrectItem)){
-                spellingMissList.push(currentCorrectItem);
-            }
-          }
-          // 正解単語を読み上げ
-          audioSequence.push({text: spellingTargetWord, lang: "en-US"});
+      // 不正解ならリスト追加（Nearlyでも今回は不正解扱い）
+      if(spellingRound === 1){
+        if(!spellingMissList.includes(currentCorrectItem)){
+            spellingMissList.push(currentCorrectItem);
+        }
       }
-      
-      // 次へ進む音声
-      if(hasNext) {
-        audioSequence.push({text: "Next question.", lang: "en-US"});
-      }
-
-      playSequence(audioSequence, () => {
-          spellingIndex++;
-          nextSpellingQuestion();
-      });
   }
+
+  // ★ どの評価の後でも、必ず正解単語を流す
+  audioSequence.push({text: spellingTargetWord, lang: "en-US"});
+
+  // 次へ進む音声（最終問題以外）
+  if(hasNext) {
+    audioSequence.push({text: "Next question.", lang: "en-US"});
+  }
+
+  playSequence(audioSequence, () => {
+      spellingIndex++;
+      nextSpellingQuestion();
+  });
 }
 
 // === 切迫モード便利関数 ===
@@ -1043,7 +1030,7 @@ function playSequence(list, onComplete){
     u.rate = 1.0;
     u.onend = function(){
       index++;
-      setTimeout(playNext, 300); // 間隔を少し短く調整
+      setTimeout(playNext, 300); // 連続再生の間隔
     };
     u.onerror = function(){
       index++;

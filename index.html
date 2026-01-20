@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>英単語暗記アプリ (Spelling Audio Fix)</title>
+<title>英単語暗記アプリ (Enter Key Support)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
 <style>
@@ -81,6 +81,11 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
 #inputAnswer:focus {
   border-color: #ff9bcd;
   background: #fffdf0;
+}
+#inputAnswer:disabled {
+  background: #eee;
+  color: #999;
+  border-color: #ddd;
 }
 
 .hint-area {
@@ -344,7 +349,7 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
   <div class="big" id="spellingQuestionText" style="margin-bottom:0; font-family: monospace;" onclick="playSpellingAudio()"></div>
   
   <div class="input-area">
-    <input type="text" id="inputAnswer" maxlength="2" autocomplete="off" placeholder="__">
+    <input type="text" id="inputAnswer" maxlength="2" autocomplete="off" placeholder="__" onkeydown="if(event.key==='Enter') checkSpellingAnswer()">
   </div>
   
   <div style="text-align:center;">
@@ -831,7 +836,11 @@ function startSpellingMode(t){
 
 function nextSpellingQuestion(){
   document.getElementById("spellingFeedback").innerText = "";
-  document.getElementById("inputAnswer").value = "";
+  
+  const input = document.getElementById("inputAnswer");
+  input.disabled = false; // 入力ロック解除
+  input.value = "";
+  
   document.getElementById("spellingRoundDisplay").innerText = spellingRound;
 
   if(spellingIndex >= spellingOrder.length){
@@ -874,7 +883,6 @@ function nextSpellingQuestion(){
   setImage("spellingImageArea", currentCorrectItem.image);
   document.getElementById("spellingQuestionText").innerText = currentMaskedData.displayed;
   
-  const input = document.getElementById("inputAnswer");
   input.maxLength = currentMaskedData.answer.length;
   input.focus();
 
@@ -914,6 +922,11 @@ function createMaskedWord(word){
 
 function checkSpellingAnswer(){
   const input = document.getElementById("inputAnswer");
+  
+  // 連打防止のため、すでにロックされていたら無視
+  if(input.disabled) return;
+  input.disabled = true; // 入力をロック
+  
   const feedback = document.getElementById("spellingFeedback");
   
   const rawInput = input.value;
@@ -956,7 +969,7 @@ function checkSpellingAnswer(){
       
       audioSequence.push({text: msgText, lang: "en-US"});
 
-      // 不正解ならリスト追加（Nearlyでも今回は不正解扱い）
+      // 不正解ならリスト追加
       if(spellingRound === 1){
         if(!spellingMissList.includes(currentCorrectItem)){
             spellingMissList.push(currentCorrectItem);

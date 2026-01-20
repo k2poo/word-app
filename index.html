@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>英単語暗記アプリ (Enhanced Spelling)</title>
+<title>英単語暗記アプリ (Spelling Fix)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
 <style>
@@ -278,10 +278,10 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
   </div>
 
   <div class="card">
-    <h3>📘 基本コース</h3>
+    <h3 id="headerBasic">📘 基本コース</h3>
     <div id="basicList" style="text-align:center;"></div>
 
-    <h3>📕 中級コース</h3>
+    <h3 id="headerInter">📕 中級コース</h3>
     <div id="intermediateList" style="text-align:center;"></div>
   </div>
 
@@ -418,8 +418,6 @@ let spellingMissList = [];
 let currentMaskedData = null; 
 let spellingTargetWord = ""; 
 let spellingHintText = ""; 
-// 正解メッセージ切り替え用トグル
-let isGoodJob = false; 
 
 // ===== 認証・同期ロジック (Auth) =====
 auth.onAuthStateChanged(async (user) => {
@@ -456,7 +454,6 @@ const formatTime = sec => {
   return h ? `${h}時間${m%60}分` : `${m}分`;
 };
 const hasJapanese = (str) => /[ぁ-んァ-ン一-龠]/.test(str);
-// 全角→半角変換
 const toHalfWidth = (str) => {
     return str.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(s) {
         return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
@@ -554,6 +551,17 @@ function setMode(mode){
     const el = document.getElementById('mode' + m.charAt(0).toUpperCase() + m.slice(1));
     if(el) el.className = 'mode-option' + (mode === m ? ' mode-active' : '');
   });
+  // モード切り替え時にリスト表示を更新
+  updateListVisibility();
+}
+
+function updateListVisibility() {
+  const isSpelling = (appMode === 'spelling');
+  // 綴りモードなら中級コースを隠す
+  const hInter = document.getElementById('headerInter');
+  const lInter = document.getElementById('intermediateList');
+  if(hInter) hInter.style.display = isSpelling ? 'none' : 'block';
+  if(lInter) lInter.style.display = isSpelling ? 'none' : 'grid'; // PCはgrid
 }
 
 // ===== リスト読込 =====
@@ -600,6 +608,9 @@ async function loadAllLists(){
   
   make(basic, "lists", "basicList");
   make(inter, "lists2", "intermediateList");
+  
+  updateListVisibility(); // リスト生成後に表示制御
+
   await updateStudyInfo();
   await drawStudyChart();
   show("listScreen");
@@ -806,7 +817,7 @@ function checkGameAnswer(selected, correct){
 }
 
 // ============================================
-// ✏️ 綴り（スペリング）モード (修正版: 判定強化)
+// ✏️ 綴り（スペリング）モード
 // ============================================
 
 function startSpellingMode(t){
@@ -907,86 +918,76 @@ function checkSpellingAnswer(){
   const input = document.getElementById("inputAnswer");
   const feedback = document.getElementById("spellingFeedback");
   
-  // 1. 全角→半角変換 & トリム
   const rawInput = input.value;
   const normalizedInput = toHalfWidth(rawInput).trim();
-  const correctVal = currentMaskedData.answer; // 大文字小文字そのまま
+  const correctVal = currentMaskedData.answer;
 
-  // 判定ロジック
+  // 音声リスト作成
+  let audioSequence = [];
+  
+  // 次の問題がまだあるか（最終問題かどうか）
+  // ※ 1巡目の最後、または2巡目がある場合の最後など
+  const hasNext = (spellingIndex < spellingOrder.length - 1);
+
   if (normalizedInput === correctVal) {
-      // === 完全正解 ===
-      isGoodJob = !isGoodJob; // トグル切り替え
-      const msg = isGoodJob ? "Good job!" : "Excellent!";
-      
-      feedback.innerText = "⭕ " + msg;
+      // === 正解 ===
+      feedback.innerText = "⭕ Good job!";
       feedback.style.color = "green";
       
-      forceSpeak(msg);
-      setTimeout(() => {
+      audioSequence.push({text: "Good job!", lang: "en-US"});
+      if(hasNext) {
+        audioSequence.push({text: "Next question.", lang: "en-US"});
+      }
+
+      playSequence(audioSequence, () => {
           spellingIndex++;
           nextSpellingQuestion();
-      }, 1000);
+      });
 
   } else {
       // === 不正解または惜しい ===
       let isNearly = false;
-      let msg = "Try again.";
+      let msgText = "Try again.";
       
-      // Case 1: 大文字小文字の違いのみ
       if (normalizedInput.toLowerCase() === correctVal.toLowerCase()) {
-          msg = "Nearly.";
+          msgText = "Nearly.";
           isNearly = true;
       }
-      // Case 2: 2文字穴埋めで1文字だけ合っている (大文字小文字区別あり)
       else if (correctVal.length === 2 && normalizedInput.length === 2) {
           let matchCount = 0;
           if (normalizedInput[0] === correctVal[0]) matchCount++;
           if (normalizedInput[1] === correctVal[1]) matchCount++;
-          
           if (matchCount === 1) {
-               msg = "Nearly!";
+               msgText = "Nearly!";
                isNearly = true;
           }
       }
 
-      feedback.innerText = isNearly ? `⚠️ ${msg}` : `❌ ${msg}`;
-      feedback.style.color = isNearly ? "#e6ae00" : "red"; // Nearlyはオレンジ色
+      feedback.innerText = isNearly ? `⚠️ ${msgText}` : `❌ ${msgText}`;
+      feedback.style.color = isNearly ? "#e6ae00" : "red";
       
-      forceSpeak(msg);
+      audioSequence.push({text: msgText, lang: "en-US"});
 
+      // 不正解(Nearly以外)ならリスト追加
       if(!isNearly) {
-          // 完全に間違いの場合はリスト追加 & 正解読み上げ
           if(spellingRound === 1){
             if(!spellingMissList.includes(currentCorrectItem)){
                 spellingMissList.push(currentCorrectItem);
             }
           }
-          // 少し待って正解を言う
-          setTimeout(() => {
-             forceSpeak(spellingTargetWord);
-          }, 1000);
-
-          setTimeout(() => {
-              spellingIndex++;
-              nextSpellingQuestion();
-          }, 2500);
-      } else {
-          // Nearlyの場合は入力をクリアせずにユーザーに再考させる（今回は仕様上、次へ進むフローに統一しますが、
-          // 文脈的に「次へ」でよろしいでしょうか？要件には「次へ」とは書いていませんが、
-          // 既存コードの流れ上、間違いとして処理し次へ進めます）
-          // もし「再入力させる」場合は return しますが、今回は仕様をシンプルに保つため
-          // 間違いリストに追加して次へ進む扱いにします。
-          
-          if(spellingRound === 1){
-            if(!spellingMissList.includes(currentCorrectItem)){
-                spellingMissList.push(currentCorrectItem);
-            }
-          }
-           setTimeout(() => {
-              spellingIndex++;
-              nextSpellingQuestion();
-          }, 1500);
+          // 正解単語を読み上げ
+          audioSequence.push({text: spellingTargetWord, lang: "en-US"});
       }
+      
+      // 次へ進む音声
+      if(hasNext) {
+        audioSequence.push({text: "Next question.", lang: "en-US"});
+      }
+
+      playSequence(audioSequence, () => {
+          spellingIndex++;
+          nextSpellingQuestion();
+      });
   }
 }
 
@@ -1042,7 +1043,7 @@ function playSequence(list, onComplete){
     u.rate = 1.0;
     u.onend = function(){
       index++;
-      setTimeout(playNext, 500);
+      setTimeout(playNext, 300); // 間隔を少し短く調整
     };
     u.onerror = function(){
       index++;

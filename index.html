@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>英単語暗記アプリ (Auto Detect)</title>
+<title>英単語暗記アプリ (Enhanced Spelling)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
 <style>
@@ -416,9 +416,10 @@ let spellingIndex = 0;
 let spellingRound = 1;
 let spellingMissList = []; 
 let currentMaskedData = null; 
-// 綴りモード用：現在ターゲットとなっている英語と、ヒントの日本語
 let spellingTargetWord = ""; 
 let spellingHintText = ""; 
+// 正解メッセージ切り替え用トグル
+let isGoodJob = false; 
 
 // ===== 認証・同期ロジック (Auth) =====
 auth.onAuthStateChanged(async (user) => {
@@ -454,8 +455,13 @@ const formatTime = sec => {
   const h = Math.floor(m/60);
   return h ? `${h}時間${m%60}分` : `${m}分`;
 };
-// 日本語が含まれているか判定する関数
 const hasJapanese = (str) => /[ぁ-んァ-ン一-龠]/.test(str);
+// 全角→半角変換
+const toHalfWidth = (str) => {
+    return str.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(s) {
+        return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
+    });
+};
 
 // ===== CSV読み込み =====
 async function loadCSV(path){
@@ -472,17 +478,14 @@ async function loadCSV(path){
     text = text.replace(/^\uFEFF/, ""); 
     const lines = text.trim().split("\n");
     if(lines.length < 2) return []; 
-    // ヘッダー行を解析
     const headers = lines[0].split(",").map(h=>h.trim());
     
     return lines.slice(1).map(l=>{
-      // カンマ区切りの簡易パース（引用符などは考慮外）
       const v=l.split(",");
       let o={};
       headers.forEach((h,i)=> {
         o[h] = v[i] ? v[i].trim() : "";
       });
-      // 必須フィールドの補完（もしCSVヘッダー名が違っても word/meaning にマップする努力）
       if(!o.word && headers[0]) o.word = o[headers[0]];
       if(!o.meaning && headers[1]) o.meaning = o[headers[1]];
       return o;
@@ -620,7 +623,6 @@ async function startSession(folder, title, file, directData){
   } else if(appMode === 'spelling'){
     startSpellingMode(title);
   } else {
-    // ゲームまたは切迫モード
     startGameMode(title);
   }
 }
@@ -662,7 +664,6 @@ function nextQuestion(){
   document.getElementById("questionWord").innerText=it.word;
   document.getElementById("answerMeaning").innerText="";
   
-  // 画像処理
   setImage("studyImageArea", it.image);
 }
 function markKnow(){ 
@@ -714,10 +715,8 @@ function nextGameQuestion(){
   document.getElementById("gameQuestionWord").innerText = currentCorrectItem.word;
   document.getElementById("listeningMsg").style.display = "block";
   
-  // 画像
   setImage("gameImageArea", currentCorrectItem.image);
 
-  // 音声出題
   setTimeout(() => forceSpeak(currentCorrectItem.word), 400);
 
   stopUrgentTimer();
@@ -807,7 +806,7 @@ function checkGameAnswer(selected, correct){
 }
 
 // ============================================
-// ✏️ 綴り（スペリング）モード (自動判別機能付き)
+// ✏️ 綴り（スペリング）モード (修正版: 判定強化)
 // ============================================
 
 function startSpellingMode(t){
@@ -845,52 +844,39 @@ function nextSpellingQuestion(){
   const currentIdx = spellingOrder[spellingIndex];
   currentCorrectItem = currentList[currentIdx];
 
-  // === 自動判別ロジック ===
-  // Word列とMeaning列、どちらが英語（スペル対象）でどちらが日本語（ヒント）か判断する
+  // 自動判別
   const w = currentCorrectItem.word;
   const m = currentCorrectItem.meaning;
   
-  // デフォルト: wordが英語、meaningが日本語
   let targetVal = w;
   let hintVal = m;
 
-  // wordに日本語が含まれていて、meaningに日本語が含まれていない(英語)場合 → 入れ替え
   if(hasJapanese(w) && !hasJapanese(m)){
-      targetVal = m; // 英語の方をスペル対象に
-      hintVal = w;   // 日本語の方をヒントに
+      targetVal = m;
+      hintVal = w;
   }
-  // 両方英語の場合、デフォルト(Wordがスペル対象)のまま
   
   spellingTargetWord = targetVal;
   spellingHintText = hintVal;
 
-  // 穴埋め作成 (対象は英語である targetVal)
   currentMaskedData = createMaskedWord(spellingTargetWord);
   
-  // ★ 意味（日本語または非対象の英語）を正解として大きく表示 ★
   document.getElementById("spellingMeaning").innerText = spellingHintText;
-  
-  // ★ 画像があれば表示 ★
   setImage("spellingImageArea", currentCorrectItem.image);
-
-  // ★ 穴埋め単語（英語）を表示 ★
   document.getElementById("spellingQuestionText").innerText = currentMaskedData.displayed;
   
   const input = document.getElementById("inputAnswer");
   input.maxLength = currentMaskedData.answer.length;
   input.focus();
 
-  // ★ 音声は「綴りのヒント」なので英語（targetVal）を再生 ★
   setTimeout(() => playSpellingAudio(), 400);
 }
 
 function playSpellingAudio() {
-  // 常に英語（スペル対象の単語）を再生
   forceSpeak(spellingTargetWord);
 }
 
 function createMaskedWord(word){
-  // 記号やスペースが含まれる場合の簡易ガード
   if(!word) return { displayed: "??", answer: "??" };
   
   const isCon = c => /[bcdfghjklmnpqrstvwxyz]/i.test(c);
@@ -919,36 +905,88 @@ function createMaskedWord(word){
 
 function checkSpellingAnswer(){
   const input = document.getElementById("inputAnswer");
-  const userVal = input.value.trim().toLowerCase();
-  const correctVal = currentMaskedData.answer.toLowerCase();
   const feedback = document.getElementById("spellingFeedback");
+  
+  // 1. 全角→半角変換 & トリム
+  const rawInput = input.value;
+  const normalizedInput = toHalfWidth(rawInput).trim();
+  const correctVal = currentMaskedData.answer; // 大文字小文字そのまま
 
-  if(userVal === correctVal){
-    feedback.innerText = "⭕ Correct!";
-    feedback.style.color = "green";
-    
-    // 正解時はGood jobなど
-    forceSpeak("Good!");
-    setTimeout(() => {
-        spellingIndex++;
-        nextSpellingQuestion();
-    }, 1000);
-    
+  // 判定ロジック
+  if (normalizedInput === correctVal) {
+      // === 完全正解 ===
+      isGoodJob = !isGoodJob; // トグル切り替え
+      const msg = isGoodJob ? "Good job!" : "Excellent!";
+      
+      feedback.innerText = "⭕ " + msg;
+      feedback.style.color = "green";
+      
+      forceSpeak(msg);
+      setTimeout(() => {
+          spellingIndex++;
+          nextSpellingQuestion();
+      }, 1000);
+
   } else {
-    feedback.innerText = `❌ 正解は "${currentMaskedData.answer}"`;
-    feedback.style.color = "red";
-    
-    if(spellingRound === 1){
-        if(!spellingMissList.includes(currentCorrectItem)){
-            spellingMissList.push(currentCorrectItem);
-        }
-    }
-    // 間違えた時は正解の単語（英語）をフルで読み上げる
-    forceSpeak(spellingTargetWord);
-    setTimeout(() => {
-        spellingIndex++;
-        nextSpellingQuestion();
-    }, 2500);
+      // === 不正解または惜しい ===
+      let isNearly = false;
+      let msg = "Try again.";
+      
+      // Case 1: 大文字小文字の違いのみ
+      if (normalizedInput.toLowerCase() === correctVal.toLowerCase()) {
+          msg = "Nearly.";
+          isNearly = true;
+      }
+      // Case 2: 2文字穴埋めで1文字だけ合っている (大文字小文字区別あり)
+      else if (correctVal.length === 2 && normalizedInput.length === 2) {
+          let matchCount = 0;
+          if (normalizedInput[0] === correctVal[0]) matchCount++;
+          if (normalizedInput[1] === correctVal[1]) matchCount++;
+          
+          if (matchCount === 1) {
+               msg = "Nearly!";
+               isNearly = true;
+          }
+      }
+
+      feedback.innerText = isNearly ? `⚠️ ${msg}` : `❌ ${msg}`;
+      feedback.style.color = isNearly ? "#e6ae00" : "red"; // Nearlyはオレンジ色
+      
+      forceSpeak(msg);
+
+      if(!isNearly) {
+          // 完全に間違いの場合はリスト追加 & 正解読み上げ
+          if(spellingRound === 1){
+            if(!spellingMissList.includes(currentCorrectItem)){
+                spellingMissList.push(currentCorrectItem);
+            }
+          }
+          // 少し待って正解を言う
+          setTimeout(() => {
+             forceSpeak(spellingTargetWord);
+          }, 1000);
+
+          setTimeout(() => {
+              spellingIndex++;
+              nextSpellingQuestion();
+          }, 2500);
+      } else {
+          // Nearlyの場合は入力をクリアせずにユーザーに再考させる（今回は仕様上、次へ進むフローに統一しますが、
+          // 文脈的に「次へ」でよろしいでしょうか？要件には「次へ」とは書いていませんが、
+          // 既存コードの流れ上、間違いとして処理し次へ進めます）
+          // もし「再入力させる」場合は return しますが、今回は仕様をシンプルに保つため
+          // 間違いリストに追加して次へ進む扱いにします。
+          
+          if(spellingRound === 1){
+            if(!spellingMissList.includes(currentCorrectItem)){
+                spellingMissList.push(currentCorrectItem);
+            }
+          }
+           setTimeout(() => {
+              spellingIndex++;
+              nextSpellingQuestion();
+          }, 1500);
+      }
   }
 }
 

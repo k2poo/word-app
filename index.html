@@ -48,6 +48,7 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
 .btn-pink{ background:#ff9bcd; color:#721c24; }
 .btn-gray{ background:#dddddd; color:#333; }
 
+/* ゲーム用選択肢 */
 .btn-choice{
   width: 100%;
   margin: 2vw 0;
@@ -59,6 +60,26 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
   color: #333;
   text-align: left;
   font-weight: bold;
+}
+
+/* 綴りモード用の入力エリア */
+.input-area {
+  text-align: center;
+  margin: 4vw 0;
+}
+#inputAnswer {
+  font-size: 8vw;
+  width: 60%;
+  padding: 2vw;
+  text-align: center;
+  border: 2px solid #9bd8ff;
+  border-radius: 10px;
+  outline: none;
+  letter-spacing: 0.1em;
+}
+#inputAnswer:focus {
+  border-color: #ff9bcd;
+  background: #fffdf0;
 }
 
 .hint-area {
@@ -132,21 +153,23 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
 
 .mode-switch {
   display: flex;
-  justify-content: center;
+  justify-content: space-between; /* 均等配置 */
   margin-bottom: 4vw;
   background: #eee;
   border-radius: 25px;
   padding: 1vw;
+  flex-wrap: nowrap;
 }
 .mode-option {
   flex: 1;
   text-align: center;
-  padding: 2.5vw;
+  padding: 2.5vw 0.5vw;
   border-radius: 20px;
   cursor: pointer;
-  font-size: 4vw;
+  font-size: 3.2vw; /* 文字サイズ調整 */
   color: #888;
   transition: 0.3s;
+  white-space: nowrap;
 }
 .mode-active {
   background: #ff9bcd;
@@ -158,6 +181,11 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
 #modeUrgent.mode-active {
   background: #ff6b6b;
   color: white;
+}
+/* 綴りモードの色設定 */
+#modeSpelling.mode-active {
+  background: #9bd8ff;
+  color: #004085;
 }
 
 .score-board {
@@ -211,7 +239,7 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
     padding: 10px;
   }
   .mode-option {
-    font-size: 18px;
+    font-size: 16px;
     padding: 10px;
   }
   .big {
@@ -223,6 +251,10 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
     font-size: 20px;
     padding: 20px;
     margin: 10px 0;
+  }
+  .input-area #inputAnswer {
+    font-size: 48px;
+    width: 300px;
   }
   .btn-hint {
     font-size: 16px;
@@ -272,6 +304,7 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
       <div id="modeStudy" class="mode-option mode-active" onclick="setMode('study')">⚡ 速攻</div>
       <div id="modeGame" class="mode-option" onclick="setMode('game')">🎮 ゲーム</div>
       <div id="modeUrgent" class="mode-option" onclick="setMode('urgent')">🔥 切迫</div>
+      <div id="modeSpelling" class="mode-option" onclick="setMode('spelling')">✏️ 綴り</div>
     </div>
     
     <div style="text-align:center; font-size:0.9em; color:#888; margin-bottom:2vw;">
@@ -335,6 +368,29 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
   </div>
 </div>
 
+<div id="spellingScreen" class="screen card" style="min-height: 80vh;">
+  <div class="score-board">ROUND: <span id="spellingRoundDisplay">1</span></div>
+  <div style="text-align:center; color:#555; margin-bottom:2vw;">空欄を埋めてください</div>
+
+  <div class="big" id="spellingQuestionText" style="margin-bottom:0;" onclick="forceSpeak(currentCorrectItem.word)"></div>
+  
+  <div class="input-area">
+    <input type="text" id="inputAnswer" maxlength="2" autocomplete="off">
+  </div>
+  
+  <div style="text-align:center;">
+    <button class="btn-green" onclick="checkSpellingAnswer()">回答する</button>
+    <button class="btn-blue" onclick="forceSpeak(currentCorrectItem.word)">🎵 音声を聞く</button>
+  </div>
+
+  <div id="spellingFeedback" style="text-align:center; font-size:1.2em; height:3em; margin-top:4vw; font-weight:bold; color:red;"></div>
+
+  <div style="text-align:center; margin-top:8vw;">
+    <button class="btn-gray" onclick="endStudy()">終了して戻る</button>
+  </div>
+</div>
+
+
 <div id="infoBar">
   <div id="authMsg" class="auth-msg" style="display:none;">
     同じGoogleアカウントでログインすると端末が違っても、<br>学習の記録が累積されます。<br>ログインしないときは、端末ごとに累積されます。
@@ -353,7 +409,7 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
 // ===== ★バックアップ用データ ★ =====
 const BACKUP_DATA = {
   basic: [
-    {title: "基本単語1(Backup)", file:"backup_basic", data:[{word:"Apple",meaning:"りんご"},{word:"Dog",meaning:"犬"},{word:"Cat",meaning:"猫"},{word:"Run",meaning:"走る"}]},
+    {title: "基本単語1(Backup)", file:"backup_basic", data:[{word:"Apple",meaning:"りんご"},{word:"Orange",meaning:"オレンジ"},{word:"Cat",meaning:"猫"},{word:"Run",meaning:"走る"}]},
     {title: "基本単語2(Backup)", file:"backup_basic2", data:[{word:"Hello",meaning:"こんにちは"},{word:"Thank you",meaning:"ありがとう"}]}
   ],
   inter: [
@@ -377,9 +433,7 @@ const auth = firebase.auth();
 let localId = localStorage.getItem("localId");
 if(!localId){ localId = crypto.randomUUID(); localStorage.setItem("localId", localId); }
 
-// デフォルトはローカルID。認証後に書き換わる。
 let userId = localId; 
-
 let studyStartTime = null;
 let currentList = [];
 let appMode = 'study'; 
@@ -390,26 +444,27 @@ let studyTitle = "";
 let urgentTimeouts = []; 
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
+// === 綴りモード用変数 ===
+let spellingOrder = [];
+let spellingIndex = 0;
+let spellingRound = 1;
+let spellingMissList = []; // 間違えた問題を保存
+let currentMaskedData = null; // { displayed: "ora__ge", answer: "ng" }
+
 // ===== 認証・同期ロジック (Auth) =====
 auth.onAuthStateChanged(async (user) => {
   const btn = document.getElementById("authBtn");
   const msg = document.getElementById("authMsg");
   
   if (user) {
-    // ログイン中：IDをGoogleのものに
     userId = user.uid;
-    msg.style.display = "none"; // メッセージを隠す
+    msg.style.display = "none";
     btn.innerText = "ログアウト (" + user.displayName + ")";
-    console.log("Logged in: " + userId);
   } else {
-    // ログアウト中：IDをローカルに
     userId = localId;
-    msg.style.display = "block"; // メッセージを表示
+    msg.style.display = "block";
     btn.innerText = "Googleでログイン";
-    console.log("Logged out. Using local: " + userId);
   }
-  
-  // ID確定後にデータを再読み込み
   await loadAllLists();
 });
 
@@ -454,9 +509,7 @@ async function loadCSV(path){
       headers.forEach((h,i)=>o[h]=v[i]?v[i].trim():"");
       return o;
     });
-  } catch(e) {
-    return null; 
-  }
+  } catch(e) { return null; }
 }
 
 // ===== Firestore関連 =====
@@ -516,9 +569,9 @@ async function drawStudyChart(){
 
 function setMode(mode){
   appMode = mode;
-  ['study', 'game', 'urgent'].forEach(m => {
+  ['study', 'game', 'urgent', 'spelling'].forEach(m => {
     const el = document.getElementById('mode' + m.charAt(0).toUpperCase() + m.slice(1));
-    el.className = 'mode-option' + (mode === m ? ' mode-active' : '');
+    if(el) el.className = 'mode-option' + (mode === m ? ' mode-active' : '');
   });
 }
 
@@ -536,7 +589,7 @@ async function loadAllLists(){
   if(!inter) { inter = BACKUP_DATA.inter; usedBackup = true; }
 
   if(usedBackup){
-    statusDiv.innerHTML = "⚠️ ファイル読込失敗。<br>予備データで起動しました。<br>(フォルダ構成を確認してください)";
+    statusDiv.innerHTML = "⚠️ ファイル読込失敗。<br>予備データで起動しました。";
     statusDiv.style.color = "red";
   } else {
     statusDiv.innerText = "✅ 読込完了";
@@ -586,6 +639,8 @@ async function startSession(folder, title, file, directData){
 
   if(appMode === 'study'){
     startStudyMode(title);
+  } else if(appMode === 'spelling'){
+    startSpellingMode(title);
   } else {
     // ゲームまたは切迫モード
     startGameMode(title);
@@ -670,26 +725,18 @@ function nextGameQuestion(){
   // 音声出題
   setTimeout(() => forceSpeak(currentCorrectItem.word), 400);
 
-  // ▼ 切迫モードのタイマー処理（改：0.6秒間隔）▼
+  // 切迫モードのタイマー処理
   stopUrgentTimer();
   if(appMode === 'urgent') {
-    // ステップ：出題(約2秒待機) -> ピッ -> 0.6秒 -> ピッ -> 0.6秒 -> ヒント2
-    // -> (約2秒待機) -> ピッ -> 0.6秒 -> ピッ -> 0.6秒 -> タイムオーバー
+    const startDelay = 2000;
+    urgentTimeouts.push(setTimeout(playBeep, startDelay));            
+    urgentTimeouts.push(setTimeout(playBeep, startDelay + 600));      
+    urgentTimeouts.push(setTimeout(gameHint2, startDelay + 1200));    
 
-    const startDelay = 2000; // 出題音声が終わるのを待つ時間
-
-    // === 第1フェーズ：ヒント2への予告 ===
-    urgentTimeouts.push(setTimeout(playBeep, startDelay));            // ピッ
-    urgentTimeouts.push(setTimeout(playBeep, startDelay + 600));      // 0.6秒後にピッ
-    urgentTimeouts.push(setTimeout(gameHint2, startDelay + 1200));    // さらに0.6秒後にヒント2(再正)
-
-    // === 第2フェーズ：タイムオーバーへの予告 ===
-    // ヒント2再生後、ユーザーが考える時間（ここでは2秒）を設ける
     const phase2Start = startDelay + 1200 + 2000; 
-
-    urgentTimeouts.push(setTimeout(playBeep, phase2Start));           // ピッ
-    urgentTimeouts.push(setTimeout(playBeep, phase2Start + 600));     // 0.6秒後にピッ
-    urgentTimeouts.push(setTimeout(handleTimeUp, phase2Start + 1200)); // さらに0.6秒後に終了
+    urgentTimeouts.push(setTimeout(playBeep, phase2Start));           
+    urgentTimeouts.push(setTimeout(playBeep, phase2Start + 600));      
+    urgentTimeouts.push(setTimeout(handleTimeUp, phase2Start + 1200)); 
   }
 
   // 4択生成
@@ -727,7 +774,7 @@ function gameHint3(){ forceSpeak(currentCorrectItem.meaning); }
 
 // ===== ゲーム判定 =====
 function checkGameAnswer(selected, correct){
-  stopUrgentTimer(); // タイマー停止
+  stopUrgentTimer();
   
   const area = document.getElementById("choicesArea");
   Array.from(area.children).forEach(b => b.disabled = true);
@@ -738,7 +785,7 @@ function checkGameAnswer(selected, correct){
   const correctAudioText = correct.meaning;
 
   if(selected.word === correct.word){
-    // === 正解 ===
+    // 正解
     gameScore++;
     document.getElementById("gameScore").innerText = gameScore;
     feedback.innerText = "⭕ Excellent!";
@@ -756,13 +803,13 @@ function checkGameAnswer(selected, correct){
     });
 
   } else {
-    // === 不正解 ===
+    // 不正解
     feedback.innerText = `❌ 正解: ${correct.meaning}`;
     feedback.style.color = "red";
     
-    audioSequence.push({text: "Try again. Let's try saying it in English.", lang: "en-US"});
+    audioSequence.push({text: "Try again.", lang: "en-US"});
     audioSequence.push({text: correctAudioText, lang: null}); 
-    audioSequence.push({text: "Let's move on to the next question.", lang: "en-US"});
+    audioSequence.push({text: "Next.", lang: "en-US"});
 
     playSequence(audioSequence, () => {
       gameIndex++;
@@ -770,6 +817,133 @@ function checkGameAnswer(selected, correct){
     });
   }
 }
+
+// ============================================
+// ✏️ 綴り（スペリング）モード
+// ============================================
+
+function startSpellingMode(t){
+  studyTitle = t;
+  spellingRound = 1;
+  spellingIndex = 0;
+  spellingMissList = [];
+  // 1巡目は全単語をランダムに
+  spellingOrder = [...currentList.keys()].sort(()=>Math.random()-0.5);
+  
+  show("spellingScreen");
+  nextSpellingQuestion();
+}
+
+function nextSpellingQuestion(){
+  document.getElementById("spellingFeedback").innerText = "";
+  document.getElementById("inputAnswer").value = "";
+  document.getElementById("spellingRoundDisplay").innerText = spellingRound;
+
+  // ラウンド終了判定
+  if(spellingIndex >= spellingOrder.length){
+    if(spellingRound === 1 && spellingMissList.length > 0){
+      // 2巡目へ移行
+      alert("1巡目終了！\n間違えた単語のみ再テストします。");
+      spellingRound = 2;
+      spellingOrder = spellingMissList.map(item => currentList.indexOf(item));
+      spellingMissList = []; // クリア
+      spellingIndex = 0;
+      nextSpellingQuestion();
+      return;
+    } else {
+      // 完全に終了
+      saveClearCount(studyTitle);
+      alert("トレーニング終了です！お疲れ様でした！");
+      return endStudy(true);
+    }
+  }
+
+  const currentIdx = spellingOrder[spellingIndex];
+  currentCorrectItem = currentList[currentIdx];
+
+  // 穴埋め問題を作成
+  currentMaskedData = createMaskedWord(currentCorrectItem.word);
+  document.getElementById("spellingQuestionText").innerText = currentMaskedData.displayed;
+  
+  // 入力欄の設定（答えの文字数に合わせるが、基本は2文字）
+  const input = document.getElementById("inputAnswer");
+  input.maxLength = currentMaskedData.answer.length;
+  input.focus();
+
+  // 音声を流す
+  setTimeout(() => forceSpeak(currentCorrectItem.word), 400);
+}
+
+// 穴埋め作成ロジック
+function createMaskedWord(word){
+  // 子音(Consonant)の正規表現 (yは文脈によるが簡易的に子音扱いとする)
+  const isCon = c => /[bcdfghjklmnpqrstvwxyz]/i.test(c);
+  
+  // 連続する子音の開始位置候補を探す
+  let candidates = [];
+  for(let i=0; i < word.length - 1; i++){
+    if(isCon(word[i]) && isCon(word[i+1])){
+      candidates.push(i);
+    }
+  }
+
+  let targetIndex = 0;
+  let targetLen = 2;
+
+  if(candidates.length > 0){
+    // 候補からランダムに1つ選ぶ
+    targetIndex = candidates[Math.floor(Math.random() * candidates.length)];
+  } else {
+    // 条件に合わない場合、最初の2文字を隠す（単語が1文字なら1文字だけ）
+    targetIndex = 0;
+    targetLen = Math.min(2, word.length);
+  }
+
+  const answerStr = word.substr(targetIndex, targetLen);
+  const maskedStr = word.substring(0, targetIndex) + "__" + word.substring(targetIndex + targetLen);
+
+  return { displayed: maskedStr, answer: answerStr };
+}
+
+function checkSpellingAnswer(){
+  const input = document.getElementById("inputAnswer");
+  const userVal = input.value.trim().toLowerCase();
+  const correctVal = currentMaskedData.answer.toLowerCase();
+  const feedback = document.getElementById("spellingFeedback");
+
+  if(userVal === correctVal){
+    // 正解
+    feedback.innerText = "⭕ Correct!";
+    feedback.style.color = "green";
+    
+    // 正解音声を流して次へ
+    forceSpeak("Good!");
+    setTimeout(() => {
+        spellingIndex++;
+        nextSpellingQuestion();
+    }, 1000);
+    
+  } else {
+    // 不正解
+    feedback.innerText = `❌ 正解は "${currentMaskedData.answer}" (${currentCorrectItem.word})`;
+    feedback.style.color = "red";
+    
+    // 1巡目の場合、間違えたリストに追加
+    if(spellingRound === 1){
+        if(!spellingMissList.includes(currentCorrectItem)){
+            spellingMissList.push(currentCorrectItem);
+        }
+    }
+
+    // 音声と正解を表示して次へ
+    forceSpeak(currentCorrectItem.word);
+    setTimeout(() => {
+        spellingIndex++;
+        nextSpellingQuestion();
+    }, 2500);
+  }
+}
+
 
 // === 切迫モード便利関数 ===
 function playBeep() {
@@ -782,7 +956,6 @@ function playBeep() {
   osc.type = 'square';
   osc.frequency.setValueAtTime(880, audioCtx.currentTime); 
   gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-  // 短く切る (0.1秒)
   gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.1);
 
   osc.start();
@@ -878,9 +1051,6 @@ function show(id){
   document.querySelectorAll(".screen").forEach(s=>s.style.display="none");
   document.getElementById(id).style.display="block";
 }
-
-// loadAllLists() は auth.onAuthStateChanged で呼ばれるので削除
 </script>
 </body>
 </html>
-

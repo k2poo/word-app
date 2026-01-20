@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>英単語暗記アプリ (Typing Mode)</title>
+<title>英単語暗記アプリ (Spelling Answer Display)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
 <style>
@@ -1103,6 +1103,12 @@ function checkSpellingAnswer(){
             spellingMissList.push(currentCorrectItem);
         }
       }
+      
+      // ★★★ ここで不正解時に、画面のブランク部分を赤文字の正解に置き換える ★★★
+      const correctPart = correctVal;
+      const coloredAnswer = `<span style="color:red;">${correctPart}</span>`;
+      const newDisplay = currentMaskedData.displayed.replace("_".repeat(correctPart.length), coloredAnswer);
+      document.getElementById("spellingQuestionText").innerHTML = newDisplay;
   }
 
   audioSequence.push({text: spellingTargetWord, lang: "en-US"});

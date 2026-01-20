@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>英単語暗記アプリ (Enter Key Support)</title>
+<title>英単語暗記アプリ (Number Fix)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
 <style>
@@ -383,7 +383,7 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
 // ===== ★バックアップ用データ ★ =====
 const BACKUP_DATA = {
   basic: [
-    {title: "基本単語1(Backup)", file:"backup_basic", data:[{word:"Apple",meaning:"りんご"},{word:"Orange",meaning:"オレンジ"}]},
+    {title: "基本単語1(Backup)", file:"backup_basic", data:[{word:"1",meaning:"one"},{word:"2",meaning:"two"}]},
     {title: "基本単語2(Backup)", file:"backup_basic2", data:[{word:"Hello",meaning:"こんにちは"}]}
   ],
   inter: []
@@ -464,6 +464,7 @@ const toHalfWidth = (str) => {
         return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
     });
 };
+const isNum = (str) => /^[0-9]+$/.test(String(str).trim());
 
 // ===== CSV読み込み =====
 async function loadCSV(path){
@@ -838,7 +839,7 @@ function nextSpellingQuestion(){
   document.getElementById("spellingFeedback").innerText = "";
   
   const input = document.getElementById("inputAnswer");
-  input.disabled = false; // 入力ロック解除
+  input.disabled = false; 
   input.value = "";
   
   document.getElementById("spellingRoundDisplay").innerText = spellingRound;
@@ -870,6 +871,10 @@ function nextSpellingQuestion(){
   let hintVal = m;
 
   if(hasJapanese(w) && !hasJapanese(m)){
+      targetVal = m;
+      hintVal = w;
+  } else if (isNum(w) && !isNum(m)) {
+      // wordが数字 -> meaning(英語)をターゲット
       targetVal = m;
       hintVal = w;
   }
@@ -923,9 +928,8 @@ function createMaskedWord(word){
 function checkSpellingAnswer(){
   const input = document.getElementById("inputAnswer");
   
-  // 連打防止のため、すでにロックされていたら無視
   if(input.disabled) return;
-  input.disabled = true; // 入力をロック
+  input.disabled = true; 
   
   const feedback = document.getElementById("spellingFeedback");
   
@@ -935,7 +939,6 @@ function checkSpellingAnswer(){
 
   let audioSequence = [];
   
-  // 次の問題があるか
   const hasNext = (spellingIndex < spellingOrder.length - 1);
 
   if (normalizedInput === correctVal) {
@@ -977,10 +980,10 @@ function checkSpellingAnswer(){
       }
   }
 
-  // ★ どの評価の後でも、必ず正解単語を流す
+  // 必ず正解単語を流す
   audioSequence.push({text: spellingTargetWord, lang: "en-US"});
 
-  // 次へ進む音声（最終問題以外）
+  // 次へ進む音声
   if(hasNext) {
     audioSequence.push({text: "Next question.", lang: "en-US"});
   }

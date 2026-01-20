@@ -109,7 +109,7 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
 }
 /* 綴りモード用：意味の表示 */
 .meaning-display {
-  font-size: 6vw;
+  font-size: 8vw;
   color: #0077ff;
   text-align: center;
   margin: 2vw 0 4vw 0;
@@ -226,7 +226,7 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
   .big { font-size: 64px; margin: 40px 0; min-height: 80px; }
   .btn-choice { font-size: 20px; padding: 20px; margin: 10px 0; }
   .input-area #inputAnswer { font-size: 48px; width: 300px; }
-  .meaning-display { font-size: 32px; margin: 20px 0; }
+  .meaning-display { font-size: 48px; margin: 20px 0; }
   .btn-hint { font-size: 16px; padding: 10px; width: 30%; }
   #infoBar { width: 800px; left: 50%; transform: translateX(-50%); font-size: 16px; padding: 15px; }
   .auth-msg { font-size: 14px; margin-bottom: 8px; }
@@ -319,7 +319,7 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
   
   <div id="spellingMeaning" class="meaning-display"></div>
   
-  <div class="big" id="spellingQuestionText" style="margin-bottom:0; font-family: monospace;" onclick="forceSpeak(currentCorrectItem.word)"></div>
+  <div class="big" id="spellingQuestionText" style="margin-bottom:0; font-family: monospace;" onclick="forceSpeak(currentCorrectItem.meaning)"></div>
   
   <div class="input-area">
     <input type="text" id="inputAnswer" maxlength="2" autocomplete="off" placeholder="__">
@@ -327,7 +327,7 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
   
   <div style="text-align:center;">
     <button class="btn-green" onclick="checkSpellingAnswer()">回答する</button>
-    <button class="btn-blue" onclick="forceSpeak(currentCorrectItem.word)">🎵 音声を聞く</button>
+    <button class="btn-blue" onclick="forceSpeak(currentCorrectItem.meaning)">🎵 音声を聞く(意味)</button>
   </div>
 
   <div id="spellingFeedback" style="text-align:center; font-size:1.2em; height:3em; margin-top:4vw; font-weight:bold; color:red;"></div>
@@ -758,7 +758,7 @@ function checkGameAnswer(selected, correct){
 }
 
 // ============================================
-// ✏️ 綴り（スペリング）モード (修正版)
+// ✏️ 綴り（スペリング）モード (修正版: 日本語音声・表示 -> 英単語穴埋め)
 // ============================================
 
 function startSpellingMode(t){
@@ -799,18 +799,18 @@ function nextSpellingQuestion(){
   // 穴埋め作成
   currentMaskedData = createMaskedWord(currentCorrectItem.word);
   
-  // ★ ここで意味を表示 ★
+  // ★ 意味（日本語）を正解として大きく表示 ★
   document.getElementById("spellingMeaning").innerText = currentCorrectItem.meaning;
   
-  // ★ 穴埋め単語を表示 ★
+  // ★ 穴埋め単語（英語）を表示 ★
   document.getElementById("spellingQuestionText").innerText = currentMaskedData.displayed;
   
   const input = document.getElementById("inputAnswer");
   input.maxLength = currentMaskedData.answer.length;
   input.focus();
 
-  // ★ 音声は英語（Word）を再生 ★
-  setTimeout(() => forceSpeak(currentCorrectItem.word), 400);
+  // ★ 音声は意味（日本語）を再生 ★
+  setTimeout(() => forceSpeak(currentCorrectItem.meaning), 400);
 }
 
 function createMaskedWord(word){
@@ -848,6 +848,7 @@ function checkSpellingAnswer(){
     feedback.innerText = "⭕ Correct!";
     feedback.style.color = "green";
     
+    // 正解時は英語で褒める
     forceSpeak("Good!");
     setTimeout(() => {
         spellingIndex++;
@@ -863,6 +864,7 @@ function checkSpellingAnswer(){
             spellingMissList.push(currentCorrectItem);
         }
     }
+    // 間違えた時は正解の単語（英語）を読み上げる
     forceSpeak(currentCorrectItem.word);
     setTimeout(() => {
         spellingIndex++;

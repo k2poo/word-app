@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>英単語暗記アプリ (Count & Star Update)</title>
+<title>英単語暗記アプリ (Homophone Update)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
 <style>
@@ -544,6 +544,47 @@ let recognition = null;
 let isListening = false;
 let speakingTargetWord = "";
 
+// === 同音異義語リスト (Speaking Mode用) ===
+// ここに頻出の同音異義語を登録しておきます。
+// 左が「正解（ターゲット）」、右の配列が「許可する間違い（同音）」です。
+const homophones = {
+    // フルーツ・植物
+    "pear": ["pair", "pare"],
+    "flower": ["flour"],
+    "berry": ["bury"],
+    "currant": ["current"],
+    "melon": [], // なし
+
+    // 動物
+    "bear": ["bare"],
+    "deer": ["dear"],
+    "ant": ["aunt"],
+    "horse": ["hoarse"],
+
+    // 色
+    "red": ["read"], // read(過去形)
+    "blue": ["blew"],
+
+    // 数字
+    "one": ["won"],
+    "two": ["to", "too"],
+    "four": ["for", "fore"],
+    "eight": ["ate"],
+
+    // その他頻出単語
+    "sun": ["son"],
+    "sea": ["see"],
+    "right": ["write", "wright"],
+    "buy": ["by", "bye"],
+    "eye": ["i"],
+    "hour": ["our"],
+    "know": ["no"],
+    "new": ["knew"],
+    "meat": ["meet"],
+    "week": ["weak"],
+    "where": ["wear"]
+};
+
 // ===== 認証・同期ロジック (Auth) =====
 auth.onAuthStateChanged(async (user) => {
   const btn = document.getElementById("authBtn");
@@ -703,7 +744,6 @@ function renderLists() {
         const b = document.createElement("button");
         b.className = "btn-blue";
         
-        // ★修正点：クリア回数をテキストで追加してから、星を追加
         const countText = count > 0 ? `（${count}回クリア）` : "";
         b.innerHTML = title + countText + getStarHtml(count);
         
@@ -722,7 +762,7 @@ function renderLists() {
         msg.style.color = "#e91e63";
         msg.style.fontWeight = "bold";
         msg.style.marginTop = "20px";
-        msg.style.gridColumn = "1 / -1"; // Gridレイアウト用
+        msg.style.gridColumn = "1 / -1"; 
         msg.innerText = "５回クリアした基本コースのリストが表示されます。";
         basicContainer.appendChild(msg);
     }
@@ -733,7 +773,6 @@ function renderLists() {
     const interContainer = document.getElementById("intermediateList");
     interContainer.style.display = hideInter ? 'none' : 'grid';
 
-    // 中級コースの中身生成
     if(!hideInter) {
         interContainer.innerHTML = "";
         loadedInterList.forEach(i => {
@@ -743,7 +782,6 @@ function renderLists() {
             const b = document.createElement("button");
             b.className = "btn-blue";
             
-            // ★修正点
             const countText = count > 0 ? `（${count}回クリア）` : "";
             b.innerHTML = title + countText + getStarHtml(count);
             
@@ -1329,17 +1367,32 @@ function toggleListening(){
 }
 
 function checkSpeakingAnswer(userSpeech){
+  // 1. 標準的なクリーニング（記号削除など）
   const cleanSpeech = cleanText(userSpeech);
   const cleanTarget = cleanText(speakingTargetWord);
+  
+  // 2. 同音異義語判定用の準備 (小文字化のみ)
+  const rawSpeech = userSpeech.toLowerCase().trim();
+  const rawTarget = speakingTargetWord.toLowerCase().trim();
+  
+  // 3. 同音異義語リストにあるかチェック
+  const isHomophone = homophones[rawTarget] && homophones[rawTarget].includes(rawSpeech);
+
   const feedback = document.getElementById("speakingFeedback");
 
-  if(cleanSpeech === cleanTarget || cleanSpeech.includes(cleanTarget) || (cleanSpeech.length > 3 && cleanTarget.includes(cleanSpeech))) {
-      feedback.innerText = "⭕ Good!!";
+  // 判定ロジック：
+  // (A) クリーニング後が完全一致 (通常) 
+  // OR 
+  // (B) 同音異義語リストにマッチ (救済)
+  // ※ 部分一致（includes）は厳格化のため削除しました。
+  
+  if(cleanSpeech === cleanTarget || isHomophone) {
+      feedback.innerText = "⭕ Good!! " + speakingTargetWord; // 常に正解の単語を表示
       feedback.style.color = "green";
       
       playSequence([
         {text: "Good!", lang: "en-US"},
-        {text: speakingTargetWord, lang: "en-US"}
+        {text: speakingTargetWord, lang: "en-US"} // 正しい発音を返す
       ], () => {
         speakingIndex++;
         nextSpeakingQuestion();

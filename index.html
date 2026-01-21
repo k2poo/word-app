@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>英単語暗記アプリ (Speaking Update)</title>
+<title>英単語暗記アプリ (Star System Update)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
 <style>
@@ -47,7 +47,7 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
 .btn-green{ background:#9be1a7; color:#155724; }
 .btn-pink{ background:#ff9bcd; color:#721c24; }
 .btn-gray{ background:#dddddd; color:#333; }
-.btn-orange{ background:#ffcc80; color:#e65100; } /* スピーキング用 */
+.btn-orange{ background:#ffcc80; color:#e65100; } 
 
 /* ゲーム用選択肢 */
 .btn-choice{
@@ -238,7 +238,7 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
   justify-content: center;
 }
 .mode-option {
-  width: 30%; /* 3列配置に変更 */
+  width: 30%; /* 3列配置 */
   text-align: center;
   padding: 2vw 0.5vw;
   border-radius: 15px;
@@ -266,7 +266,7 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
 #modeSpelling.mode-active { background: #9bd8ff; color: #004085; }
 #modeSpelling3.mode-active { background: #4a90e2; color: #fff; }
 #modeTyping.mode-active { background: #6610f2; color: #fff; }
-#modeSpeaking.mode-active { background: #ff9800; color: #fff; } /* オレンジ */
+#modeSpeaking.mode-active { background: #ff9800; color: #fff; } 
 
 .score-board {
   text-align: center;
@@ -284,6 +284,16 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
     background: #f8f9fa;
     margin-bottom: 2vw;
     border-radius: 8px;
+}
+
+/* 星のスタイル */
+.star-gold { color: #ffd700; text-shadow: 0 1px 1px rgba(0,0,0,0.2); margin-left:5px; font-size:1.2em;}
+.star-silver { color: #c0c0c0; text-shadow: 0 1px 1px rgba(0,0,0,0.2); margin-left:5px; font-size:1.2em;}
+.star-white { 
+    color: #fff; 
+    text-shadow: 0 0 2px #555; /* 白が見えるように影をつける */
+    margin-left:5px; 
+    font-size:1.2em;
 }
 
 /* PC/Tablet */
@@ -333,8 +343,8 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
       <div id="modeUrgent" class="mode-option" onclick="setMode('urgent')">🔥 タイム<br>アタック</div>
       
       <div id="modeSpeaking" class="mode-option" onclick="setMode('speaking')">🗣️ スピーキング<br>練習</div>
-      <div id="modeSpelling" class="mode-option" onclick="setMode('spelling')">✏️ スペル<br>(2文字)</div>
-      <div id="modeSpelling3" class="mode-option" onclick="setMode('spelling3')">🖋️ スペル<br>(3文字)</div>
+      <div id="modeSpelling" class="mode-option" onclick="setMode('spelling')">✏️ スペリング<br>(2文字)</div>
+      <div id="modeSpelling3" class="mode-option" onclick="setMode('spelling3')">🖋️ スペリング<br>(3文字)</div>
       
       <div id="modeTyping" class="mode-option" onclick="setMode('typing')" style="width: 96%; margin-top:0.5vw;">⌨️ タイピング練習 (PC推奨)</div>
     </div>
@@ -430,6 +440,7 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
     <button class="btn-gray" onclick="endStudy()">終了して戻る</button>
   </div>
 </div>
+
 <div id="spellingScreen" class="screen card" style="min-height: 80vh;">
   <div style="text-align:center;color:#888;margin-bottom:2vw;" id="spellingModeTitle">✏️ スペリング</div>
   <div class="score-board">ROUND: <span id="spellingRoundDisplay">1</span></div>
@@ -507,6 +518,11 @@ let appMode = 'study';
 let currentCorrectItem = null;
 let studyTitle = ""; 
 
+// データ保持用
+let loadedBasicList = [];
+let loadedInterList = [];
+let loadedCounts = {};
+
 // === 切迫モード用変数 ===
 let urgentTimeouts = []; 
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -569,7 +585,6 @@ const toHalfWidth = (str) => {
     });
 };
 const isNum = (str) => /^[0-9]+$/.test(String(str).trim());
-// 記号削除して小文字化
 const cleanText = (str) => String(str).toLowerCase().replace(/[^a-z0-9]/g, '');
 
 // ===== CSV読み込み =====
@@ -657,22 +672,96 @@ async function drawStudyChart(){
   });
 }
 
+// 星のHTMLを生成する関数
+function getStarHtml(count) {
+    if(count >= 15) return `<span class="star-gold">★</span>`;
+    if(count >= 10) return `<span class="star-silver">★</span>`;
+    if(count >= 5)  return `<span class="star-white">☆</span>`;
+    return "";
+}
+
+// リストを描画する関数（モード切替時にも呼ぶ）
+function renderLists() {
+    const isSpelling = (appMode === 'spelling' || appMode === 'spelling3' || appMode === 'typing');
+    const isSpeaking = (appMode === 'speaking');
+    
+    // 基本コースの描画
+    const basicContainer = document.getElementById("basicList");
+    basicContainer.innerHTML = "";
+    
+    let visibleBasicCount = 0;
+
+    loadedBasicList.forEach(i => {
+        const title = i.title || "No Title";
+        const count = loadedCounts[title] || 0;
+        
+        // スペリング・タイピングモードの場合、5回未満クリアは表示しない（スキップ）
+        if(isSpelling && count < 5) {
+            return;
+        }
+
+        const b = document.createElement("button");
+        b.className = "btn-blue";
+        
+        // 星を追加したタイトル
+        b.innerHTML = title + getStarHtml(count);
+        
+        if(i.data){
+            b.onclick = () => startSession("lists", title, i.file, i.data);
+        } else {
+            b.onclick = () => startSession("lists", title, i.file, null);
+        }
+        basicContainer.appendChild(b);
+        visibleBasicCount++;
+    });
+
+    // 条件に合うリストがない場合のメッセージ
+    if(isSpelling && visibleBasicCount === 0) {
+        const msg = document.createElement("div");
+        msg.style.color = "#e91e63";
+        msg.style.fontWeight = "bold";
+        msg.style.marginTop = "20px";
+        msg.style.gridColumn = "1 / -1"; // Gridレイアウト用
+        msg.innerText = "５回クリアした基本コースのリストが表示されます。";
+        basicContainer.appendChild(msg);
+    }
+
+    // 中級コースの制御（スペリング・スピーキングなどは非表示にする）
+    const hideInter = (isSpelling || isSpeaking);
+    document.getElementById("headerInter").style.display = hideInter ? 'none' : 'block';
+    const interContainer = document.getElementById("intermediateList");
+    interContainer.style.display = hideInter ? 'none' : 'grid';
+
+    // 中級コースの中身生成（初回ロード時や、モード切替で再表示が必要なため）
+    if(!hideInter) {
+        interContainer.innerHTML = "";
+        loadedInterList.forEach(i => {
+            const title = i.title || "No Title";
+            const count = loadedCounts[title] || 0;
+            
+            const b = document.createElement("button");
+            b.className = "btn-blue";
+            b.innerHTML = title + getStarHtml(count); // 中級も星はつく
+            
+            if(i.data){
+                b.onclick = () => startSession("lists2", title, i.file, i.data);
+            } else {
+                b.onclick = () => startSession("lists2", title, i.file, null);
+            }
+            interContainer.appendChild(b);
+        });
+    }
+}
+
 function setMode(mode){
   appMode = mode;
   ['study', 'game', 'urgent', 'spelling', 'spelling3', 'typing', 'speaking'].forEach(m => {
     const el = document.getElementById('mode' + m.charAt(0).toUpperCase() + m.slice(1));
     if(el) el.className = 'mode-option' + (mode === m ? ' mode-active' : '');
   });
-  updateListVisibility();
-}
-
-function updateListVisibility() {
-  // spelling, typing, speakingの場合は中級リストを隠す（または全部表示させるか選択。今回は隠す）
-  const isTraining = (appMode.startsWith('spelling') || appMode === 'typing' || appMode === 'speaking');
-  const hInter = document.getElementById('headerInter');
-  const lInter = document.getElementById('intermediateList');
-  if(hInter) hInter.style.display = isTraining ? 'none' : 'block';
-  if(lInter) lInter.style.display = isTraining ? 'none' : 'grid'; 
+  
+  // モードに合わせてリストを再描画
+  renderLists();
 }
 
 // ===== リスト読込 =====
@@ -681,12 +770,17 @@ async function loadAllLists(){
   statusDiv.innerText = "データ読込中...";
   statusDiv.style.color = "blue";
 
+  // CSV読み込み
   let basic = await loadCSV("lists/index.csv");
   let inter = await loadCSV("lists2/index.csv");
   
   let usedBackup = false;
   if(!basic) { basic = BACKUP_DATA.basic; usedBackup = true; }
   if(!inter) { inter = BACKUP_DATA.inter; usedBackup = true; }
+
+  // グローバル変数に保存
+  loadedBasicList = basic;
+  loadedInterList = inter;
 
   if(usedBackup){
     statusDiv.innerHTML = "⚠️ ファイル読込失敗。<br>予備データで起動しました。";
@@ -697,31 +791,12 @@ async function loadAllLists(){
     setTimeout(()=>statusDiv.style.display="none", 2000);
   }
 
-  const counts = await loadClearCounts();
+  // クリア回数取得
+  loadedCounts = await loadClearCounts();
   
-  const make=(data, folder, id)=>{
-    const c=document.getElementById(id);
-    c.innerHTML="";
-    data.forEach(i=>{
-      const b=document.createElement("button");
-      b.className="btn-blue";
-      const title = i.title || "No Title";
-      b.innerText = title + (counts[title]?`（${counts[title]}回クリア）`:"");
-      
-      if(i.data){
-        b.onclick = () => startSession(folder, title, i.file, i.data);
-      } else {
-        b.onclick = () => startSession(folder, title, i.file, null);
-      }
-      c.appendChild(b);
-    });
-  };
+  // 初回描画
+  renderLists();
   
-  make(basic, "lists", "basicList");
-  make(inter, "lists2", "intermediateList");
-  
-  updateListVisibility(); 
-
   await updateStudyInfo();
   await drawStudyChart();
   show("listScreen");
@@ -1170,7 +1245,7 @@ function checkSpellingAnswer(){
 }
 
 // ============================================
-// 🗣️ スピーキング練習 (新規追加)
+// 🗣️ スピーキング練習
 // ============================================
 
 function startSpeakingMode(t){
@@ -1178,7 +1253,6 @@ function startSpeakingMode(t){
   speakingIndex = 0;
   speakingOrder = [...currentList.keys()].sort(()=>Math.random()-0.5);
   
-  // ブラウザのAPI確認
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
       alert("お使いのブラウザは音声認識に対応していません。\nGoogle Chrome等をご利用ください。");
@@ -1187,7 +1261,7 @@ function startSpeakingMode(t){
   
   recognition = new SpeechRecognition();
   recognition.lang = 'en-US';
-  recognition.interimResults = false; // 確定した結果だけ受け取る
+  recognition.interimResults = false; 
   recognition.maxAlternatives = 1;
 
   recognition.onstart = function() {
@@ -1229,7 +1303,6 @@ function nextSpeakingQuestion(){
   const currentIdx = speakingOrder[speakingIndex];
   const item = currentList[currentIdx];
   
-  // ターゲットワード設定（数字や日本語がWordに来ている場合の入れ替え処理）
   let target = item.word;
   let hint = item.meaning;
   if(hasJapanese(target) && !hasJapanese(hint)) { target = hint; hint = item.word; }
@@ -1252,13 +1325,10 @@ function toggleListening(){
 }
 
 function checkSpeakingAnswer(userSpeech){
-  // 記号を取り除き、小文字化して比較
   const cleanSpeech = cleanText(userSpeech);
   const cleanTarget = cleanText(speakingTargetWord);
   const feedback = document.getElementById("speakingFeedback");
 
-  // 完全一致、または「targetがspeechに含まれている」など緩めに判定
-  // 例: target="apple" speech="an apple" -> OKとする
   if(cleanSpeech === cleanTarget || cleanSpeech.includes(cleanTarget) || (cleanSpeech.length > 3 && cleanTarget.includes(cleanSpeech))) {
       feedback.innerText = "⭕ Good!!";
       feedback.style.color = "green";
@@ -1273,7 +1343,6 @@ function checkSpeakingAnswer(userSpeech){
   } else {
       feedback.innerText = `❌ Try again...`;
       feedback.style.color = "red";
-      // 不正解でも次へ進まず、再トライさせる
       forceSpeak("Try again");
   }
 }
@@ -1341,7 +1410,7 @@ function playSequence(list, onComplete){
         idx++;
         setTimeout(playNext, 300);
       };
-      u.onerror = () => { // エラー時も次へ
+      u.onerror = () => { 
         idx++;
         playNext();
       };
@@ -1367,7 +1436,6 @@ function playBeep() {
   osc.stop(audioCtx.currentTime + 0.1);
 }
 
-// 緊急モード用
 function stopUrgentTimer(){
   urgentTimeouts.forEach(t => clearTimeout(t));
   urgentTimeouts = [];
@@ -1377,7 +1445,6 @@ function handleTimeUp(){
   document.getElementById("gameFeedback").innerText = `⏰ 時間切れ... 正解: ${correct.meaning}`;
   document.getElementById("gameFeedback").style.color = "red";
   
-  // ボタン無効化
   const area = document.getElementById("choicesArea");
   Array.from(area.children).forEach(b => b.disabled = true);
 
@@ -1395,6 +1462,11 @@ async function endStudy(completed = false){
   if(completed){
     const duration = Math.floor((Date.now() - studyStartTime)/1000);
     await saveStudyTime(duration);
+    
+    // クリアカウントを再読み込みしてリストを更新（星をつけるため）
+    loadedCounts = await loadClearCounts();
+    renderLists();
+    
     await updateStudyInfo();
     await drawStudyChart();
   }
@@ -1408,9 +1480,8 @@ function show(id){
   window.scrollTo(0,0);
 }
 
-// 起動処理
 window.onload = function(){
-    // AuthリスナーでloadAllListsが呼ばれるのでここでは何もしない
+    // AuthリスナーでloadAllListsが呼ばれる
 };
 </script>
 </body>

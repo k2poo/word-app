@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>英単語暗記アプリ (Star System Update)</title>
+<title>英単語暗記アプリ (Count & Star Update)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
 <style>
@@ -287,12 +287,12 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
 }
 
 /* 星のスタイル */
-.star-gold { color: #ffd700; text-shadow: 0 1px 1px rgba(0,0,0,0.2); margin-left:5px; font-size:1.2em;}
-.star-silver { color: #c0c0c0; text-shadow: 0 1px 1px rgba(0,0,0,0.2); margin-left:5px; font-size:1.2em;}
+.star-gold { color: #ffd700; text-shadow: 0 1px 1px rgba(0,0,0,0.2); margin-left:3px; font-size:1.2em;}
+.star-silver { color: #c0c0c0; text-shadow: 0 1px 1px rgba(0,0,0,0.2); margin-left:3px; font-size:1.2em;}
 .star-white { 
     color: #fff; 
-    text-shadow: 0 0 2px #555; /* 白が見えるように影をつける */
-    margin-left:5px; 
+    text-shadow: 0 0 2px #555; 
+    margin-left:3px; 
     font-size:1.2em;
 }
 
@@ -703,8 +703,9 @@ function renderLists() {
         const b = document.createElement("button");
         b.className = "btn-blue";
         
-        // 星を追加したタイトル
-        b.innerHTML = title + getStarHtml(count);
+        // ★修正点：クリア回数をテキストで追加してから、星を追加
+        const countText = count > 0 ? `（${count}回クリア）` : "";
+        b.innerHTML = title + countText + getStarHtml(count);
         
         if(i.data){
             b.onclick = () => startSession("lists", title, i.file, i.data);
@@ -726,13 +727,13 @@ function renderLists() {
         basicContainer.appendChild(msg);
     }
 
-    // 中級コースの制御（スペリング・スピーキングなどは非表示にする）
+    // 中級コースの制御
     const hideInter = (isSpelling || isSpeaking);
     document.getElementById("headerInter").style.display = hideInter ? 'none' : 'block';
     const interContainer = document.getElementById("intermediateList");
     interContainer.style.display = hideInter ? 'none' : 'grid';
 
-    // 中級コースの中身生成（初回ロード時や、モード切替で再表示が必要なため）
+    // 中級コースの中身生成
     if(!hideInter) {
         interContainer.innerHTML = "";
         loadedInterList.forEach(i => {
@@ -741,7 +742,10 @@ function renderLists() {
             
             const b = document.createElement("button");
             b.className = "btn-blue";
-            b.innerHTML = title + getStarHtml(count); // 中級も星はつく
+            
+            // ★修正点
+            const countText = count > 0 ? `（${count}回クリア）` : "";
+            b.innerHTML = title + countText + getStarHtml(count);
             
             if(i.data){
                 b.onclick = () => startSession("lists2", title, i.file, i.data);
@@ -1463,7 +1467,7 @@ async function endStudy(completed = false){
     const duration = Math.floor((Date.now() - studyStartTime)/1000);
     await saveStudyTime(duration);
     
-    // クリアカウントを再読み込みしてリストを更新（星をつけるため）
+    // クリアカウントを再読み込みしてリストを更新
     loadedCounts = await loadClearCounts();
     renderLists();
     

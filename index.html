@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>英単語暗記アプリ (Homophone Update)</title>
+<title>英単語暗記アプリ (Speech Update)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
 <style>
@@ -543,17 +543,18 @@ let speakingIndex = 0;
 let recognition = null;
 let isListening = false;
 let speakingTargetWord = "";
+// ★追加: 無音検知とリトライ用変数
+let silenceTimer = null;
+let speakingRetryCount = 0;
 
 // === 同音異義語リスト (Speaking Mode用) ===
-// ここに頻出の同音異義語を登録しておきます。
-// 左が「正解（ターゲット）」、右の配列が「許可する間違い（同音）」です。
 const homophones = {
     // フルーツ・植物
     "pear": ["pair", "pare"],
     "flower": ["flour"],
     "berry": ["bury"],
     "currant": ["current"],
-    "melon": [], // なし
+    "melon": [], 
 
     // 動物
     "bear": ["bare"],
@@ -1297,15 +1298,40 @@ function startListeningSafe() {
   try {
     recognition.start();
   } catch (e) {
-    // 既に開始されている等のエラーは無視
     console.log("Mic start info:", e);
   }
 }
+
+// ★追加: 無音検知時の処理
+function handleSilenceTimeout(){
+    // 既に別の画面に移動していたら無視
+    if(appMode !== 'speaking') return;
+
+    if(recognition) {
+        try { recognition.stop(); } catch(e){}
+    }
+
+    // まだ1回もリトライしていない場合(1回目は自動再試行)
+    if(speakingRetryCount < 1){
+        speakingRetryCount++;
+        // "I can't hear you. Try again." と言ってから再開
+        playSequence([{text: "I can't hear you. Try again.", lang: "en-US"}], () => {
+             startListeningSafe();
+        });
+    } else {
+        // 2回目以降は手動モードへ
+        document.getElementById("micStatusText").innerText = "タップして入力";
+        isListening = false;
+        document.getElementById("btnMic").classList.remove("mic-active");
+    }
+}
+
 
 function startSpeakingMode(t){
   studyTitle = t;
   speakingIndex = 0;
   speakingOrder = [...currentList.keys()].sort(()=>Math.random()-0.5);
+  speakingRetryCount = 0; // 初期化
   
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
@@ -1323,18 +1349,37 @@ function startSpeakingMode(t){
     document.getElementById("btnMic").classList.add("mic-active");
     document.getElementById("micStatusText").innerText = "聞いています...";
     document.getElementById("speakingTranscript").innerText = "...";
+    
+    // ★追加: 5秒タイマーセット
+    clearTimeout(silenceTimer);
+    silenceTimer = setTimeout(handleSilenceTimeout, 5000);
   };
+  
   recognition.onend = function() {
+    clearTimeout(silenceTimer); // ★追加: タイマー解除
     isListening = false;
     document.getElementById("btnMic").classList.remove("mic-active");
+    // handleSilenceTimeoutで自動再開される場合は、その処理が後続します。
+    // 通常終了の場合は以下の表示になります。
     document.getElementById("micStatusText").innerText = "タップして発音";
   };
+  
   recognition.onerror = function(event) {
+    clearTimeout(silenceTimer); // ★追加: タイマー解除
     console.log("Mic Error:", event.error);
     document.getElementById("speakingTranscript").innerText = "待機中";
+    
+    // ★追加: ブラウザが「無音」と判断して停止した場合も同様に扱う
+    if(event.error === 'no-speech'){
+        handleSilenceTimeout();
+        return;
+    }
     if(event.error === 'not-allowed') alert("マイクの使用が許可されていません");
   };
+  
   recognition.onresult = function(event) {
+    clearTimeout(silenceTimer); // ★追加: 音声検知したのでタイマー解除
+    speakingRetryCount = 0; // ★追加: 入力があったのでリトライ回数リセット
     const transcript = event.results[0][0].transcript;
     document.getElementById("speakingTranscript").innerText = `"${transcript}"`;
     checkSpeakingAnswer(transcript);
@@ -1348,6 +1393,7 @@ function nextSpeakingQuestion(){
   document.getElementById("speakingFeedback").innerText = "";
   document.getElementById("speakingTranscript").innerText = "(ここに認識された文字が出ます)";
   document.getElementById("speakingRoundDisplay").innerText = (speakingIndex + 1) + " / " + speakingOrder.length;
+  speakingRetryCount = 0; // ★追加: 新しい問題なのでリセット
   
   if(speakingIndex >= speakingOrder.length){
       saveClearCount(studyTitle);
@@ -1368,7 +1414,7 @@ function nextSpeakingQuestion(){
   document.getElementById("speakingMeaning").innerText = hint;
   setImage("speakingImageArea", item.image);
 
-  // ★修正: 自動でマイクをONにする（少し待ってから）
+  // 自動でマイクをON
   setTimeout(() => {
       startListeningSafe();
   }, 500);
@@ -1378,6 +1424,8 @@ function toggleListening(){
   if(isListening){
     recognition.stop();
   } else {
+    // 手動タップの場合もリセット
+    speakingRetryCount = 0; 
     startListeningSafe();
   }
 }
@@ -1396,7 +1444,6 @@ function checkSpeakingAnswer(userSpeech){
 
   const feedback = document.getElementById("speakingFeedback");
   
-  // ★追加: 正解時などに音声再生とマイクが被らないよう一旦停止
   if(recognition) recognition.stop();
 
   if(cleanSpeech === cleanTarget || isHomophone) {
@@ -1408,14 +1455,13 @@ function checkSpeakingAnswer(userSpeech){
         {text: speakingTargetWord, lang: "en-US"} 
       ], () => {
         speakingIndex++;
-        nextSpeakingQuestion(); // ここで次の問題へ行き、マイクが再開される
+        nextSpeakingQuestion();
       });
   } else {
       feedback.innerText = `❌ Try again...`;
       feedback.style.color = "red";
       forceSpeak("Try again");
 
-      // ★追加: 不正解時は「Try again」の後にマイクを再開
       setTimeout(() => {
           startListeningSafe();
       }, 1500);
@@ -1534,6 +1580,10 @@ function handleTimeUp(){
 
 async function endStudy(completed = false){
   stopUrgentTimer();
+  // ★追加: 終了時にマイクが動いていたら止める
+  if(recognition) { try{recognition.abort();}catch(e){} }
+  clearTimeout(silenceTimer);
+
   if(completed){
     const duration = Math.floor((Date.now() - studyStartTime)/1000);
     await saveStudyTime(duration);

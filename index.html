@@ -547,7 +547,7 @@ let speakingTargetWord = "";
 let silenceTimer = null;
 let speakingRetryCount = 0;
 
-// === 同音異義語リスト (Speaking Mode用) ===
+// === 同音異義語・数字変換リスト (Speaking Mode用) ===
 const homophones = {
     // フルーツ・植物
     "pear": ["pair", "pare"],
@@ -566,37 +566,18 @@ const homophones = {
     "red": ["read"], // read(過去形)
     "blue": ["blew"],
 
-    // 数字
-    "one": ["won"],
-    "two": ["to", "too"],
-    "four": ["for", "fore"],
-    "eight": ["ate"],
-
-    // その他頻出単語
-    "sun": ["son"],
-    "sea": ["see"],
-    "right": ["write", "wright"],
-    "buy": ["by", "bye"],
-    "eye": ["i"],
-    "hour": ["our"],
-    "know": ["no"],
-    "new": ["knew"],
-    "meat": ["meet"],
-    "week": ["weak"],
-    "where": ["wear"]
-// === ★ここに追加！数字の変換 ===
-    // 左が「正解の単語」、右が「マイクが認識してしまう数字」
-    "zero": ["0"],
-    "one": ["1"],
-    "two": ["2"],
+    // 数字（単語 -> 他の綴り、または数字記号）
+    "one": ["won", "1"],
+    "two": ["to", "too", "2"],
     "three": ["3"],
-    "four": ["4"],
+    "four": ["for", "fore", "4"],
     "five": ["5"],
     "six": ["6"],
     "seven": ["7"],
-    "eight": ["8"],
+    "eight": ["ate", "8"],
     "nine": ["9"],
     "ten": ["10"],
+    "zero": ["0"],
     "eleven": ["11"],
     "twelve": ["12"],
     "thirteen": ["13"],
@@ -615,9 +596,22 @@ const homophones = {
     "eighty": ["80"],
     "ninety": ["90"],
     "hundred": ["100"],
-    "thousand": ["1000"]
+    "thousand": ["1000"],
+
+    // その他頻出単語
+    "sun": ["son"],
+    "sea": ["see"],
+    "right": ["write", "wright"],
+    "buy": ["by", "bye"],
+    "eye": ["i"],
+    "hour": ["our"],
+    "know": ["no"],
+    "new": ["knew"],
+    "meat": ["meet"],
+    "week": ["weak"],
+    "where": ["wear"]
 };
-};
+
 // ===== 認証・同期ロジック (Auth) =====
 auth.onAuthStateChanged(async (user) => {
   const btn = document.getElementById("authBtn");
@@ -732,6 +726,7 @@ async function drawStudyChart(){
   const d=await loadStudyTimes();
   const e=Object.entries(d).sort().slice(-7);
   const c=document.getElementById("studyChart");
+  if(!c) return;
   const ctx=c.getContext("2d");
   ctx.clearRect(0,0,c.width,c.height);
   if(!e.length) return;
@@ -754,12 +749,11 @@ function getStarHtml(count) {
     return "";
 }
 
-// リストを描画する関数（モード切替時にも呼ぶ）
+// リストを描画する関数
 function renderLists() {
     const isSpelling = (appMode === 'spelling' || appMode === 'spelling3' || appMode === 'typing');
     const isSpeaking = (appMode === 'speaking');
     
-    // 基本コースの描画
     const basicContainer = document.getElementById("basicList");
     basicContainer.innerHTML = "";
     
@@ -769,7 +763,6 @@ function renderLists() {
         const title = i.title || "No Title";
         const count = loadedCounts[title] || 0;
         
-        // スペリング・タイピングモードの場合、5回未満クリアは表示しない（スキップ）
         if(isSpelling && count < 5) {
             return;
         }
@@ -789,7 +782,6 @@ function renderLists() {
         visibleBasicCount++;
     });
 
-    // 条件に合うリストがない場合のメッセージ
     if(isSpelling && visibleBasicCount === 0) {
         const msg = document.createElement("div");
         msg.style.color = "#e91e63";
@@ -800,7 +792,6 @@ function renderLists() {
         basicContainer.appendChild(msg);
     }
 
-    // 中級コースの制御
     const hideInter = (isSpelling || isSpeaking);
     document.getElementById("headerInter").style.display = hideInter ? 'none' : 'block';
     const interContainer = document.getElementById("intermediateList");
@@ -834,18 +825,14 @@ function setMode(mode){
     const el = document.getElementById('mode' + m.charAt(0).toUpperCase() + m.slice(1));
     if(el) el.className = 'mode-option' + (mode === m ? ' mode-active' : '');
   });
-  
-  // モードに合わせてリストを再描画
   renderLists();
 }
 
-// ===== リスト読込 =====
 async function loadAllLists(){
   const statusDiv = document.getElementById("loadingStatus");
   statusDiv.innerText = "データ読込中...";
   statusDiv.style.color = "blue";
 
-  // CSV読み込み
   let basic = await loadCSV("lists/index.csv");
   let inter = await loadCSV("lists2/index.csv");
   
@@ -853,7 +840,6 @@ async function loadAllLists(){
   if(!basic) { basic = BACKUP_DATA.basic; usedBackup = true; }
   if(!inter) { inter = BACKUP_DATA.inter; usedBackup = true; }
 
-  // グローバル変数に保存
   loadedBasicList = basic;
   loadedInterList = inter;
 
@@ -866,12 +852,8 @@ async function loadAllLists(){
     setTimeout(()=>statusDiv.style.display="none", 2000);
   }
 
-  // クリア回数取得
   loadedCounts = await loadClearCounts();
-  
-  // 初回描画
   renderLists();
-  
   await updateStudyInfo();
   await drawStudyChart();
   show("listScreen");
@@ -912,11 +894,8 @@ function setImage(containerId, imageUrl) {
   }
 }
 
-// ============================================
-// ⚡ 速攻（クイックチャージ）モード
-// ============================================
+// ⚡ 速攻モード
 let studyOrder=[], studyIndex=0, dontKnow=[], round=1;
-
 function startStudyMode(t){
   studyTitle=t; round=1; studyIndex=0; dontKnow=[];
   studyOrder=[...currentList.keys()].sort(()=>Math.random()-0.5);
@@ -937,7 +916,6 @@ function nextQuestion(){
   const it=currentList[studyOrder[studyIndex]];
   document.getElementById("questionWord").innerText=it.word;
   document.getElementById("answerMeaning").innerText="";
-  
   setImage("studyImageArea", it.image);
 }
 function markKnow(){ 
@@ -955,57 +933,45 @@ function showAnswer(){
   document.getElementById("answerMeaning").innerText=currentList[studyOrder[studyIndex]].meaning; 
 }
 
-// ============================================
-// 🎮 4択ゲーム & 🔥 タイムプレッシャー
-// ============================================
+// 🎮 4択ゲーム
 let gameIndex=0, gameScore=0, gameOrder=[];
-
 function startGameMode(t){
-  studyTitle = t; // タイトル保存
+  studyTitle = t;
   gameIndex=0; gameScore=0;
   gameOrder=[...currentList.keys()].sort(()=>Math.random()-0.5);
   document.getElementById("gameScore").innerText = gameScore;
   show("gameScreen");
   nextGameQuestion();
 }
-
 function nextGameQuestion(){
   document.getElementById("gameFeedback").innerText = "";
-  
   if(gameIndex >= gameOrder.length){
     let msg = `ゲーム終了！\nあなたのスコア: ${gameScore} / ${gameOrder.length}`;
     if(gameScore === gameOrder.length){
       saveClearCount(studyTitle);
-      msg += "\n\n🎉 Perfect!!\nクリア回数に追加しました！";
+      msg += "\n\n🎉 Perfect!!";
     }
     alert(msg);
     return endStudy(true);
   }
-  
   const correctIdx = gameOrder[gameIndex];
   currentCorrectItem = currentList[correctIdx];
-  
   document.getElementById("gameQuestionWord").style.display = "none";
   document.getElementById("gameQuestionWord").innerText = currentCorrectItem.word;
   document.getElementById("listeningMsg").style.display = "block";
-  
   setImage("gameImageArea", currentCorrectItem.image);
-
   setTimeout(() => forceSpeak(currentCorrectItem.word), 400);
-
   stopUrgentTimer();
   if(appMode === 'urgent') {
     const startDelay = 2000;
     urgentTimeouts.push(setTimeout(playBeep, startDelay));            
     urgentTimeouts.push(setTimeout(playBeep, startDelay + 600));      
     urgentTimeouts.push(setTimeout(gameHint2, startDelay + 1200));    
-
     const phase2Start = startDelay + 1200 + 2000; 
     urgentTimeouts.push(setTimeout(playBeep, phase2Start));            
     urgentTimeouts.push(setTimeout(playBeep, phase2Start + 600));      
     urgentTimeouts.push(setTimeout(handleTimeUp, phase2Start + 1200)); 
   }
-
   let choices = [currentCorrectItem];
   let loop=0;
   while(choices.length < 4 && loop < 100){
@@ -1017,10 +983,8 @@ function nextGameQuestion(){
     }
   }
   choices.sort(()=>Math.random()-0.5);
-
   const area = document.getElementById("choicesArea");
   area.innerHTML = "";
-  
   choices.forEach(c => {
     const btn = document.createElement("button");
     btn.className = "btn-choice";
@@ -1029,7 +993,6 @@ function nextGameQuestion(){
     area.appendChild(btn);
   });
 }
-
 function gameHint1(){
   document.getElementById("listeningMsg").style.display = "none";
   document.getElementById("gameQuestionWord").style.display = "block";
@@ -1040,608 +1003,290 @@ function gameHint3(){ forceSpeak(currentCorrectItem.meaning); }
 
 function checkGameAnswer(selected, correct){
   stopUrgentTimer();
-  
   const area = document.getElementById("choicesArea");
   Array.from(area.children).forEach(b => b.disabled = true);
   const feedback = document.getElementById("gameFeedback");
-
   const isLastQuestion = (gameIndex >= gameOrder.length - 1);
   let audioSequence = [];
-  const correctAudioText = correct.meaning;
-
   if(selected.word === correct.word){
     gameScore++;
     document.getElementById("gameScore").innerText = gameScore;
     feedback.innerText = "⭕ Excellent!";
     feedback.style.color = "green";
-    
     audioSequence.push({text: "Good job!", lang: "en-US"});
-    audioSequence.push({text: correctAudioText, lang: null}); 
-    if(!isLastQuestion){
-      audioSequence.push({text: "Let's go on to the next question.", lang: "en-US"});
-    }
-    playSequence(audioSequence, () => {
-      gameIndex++;
-      nextGameQuestion();
-    });
-
+    audioSequence.push({text: correct.meaning, lang: null}); 
+    if(!isLastQuestion) audioSequence.push({text: "Next question.", lang: "en-US"});
+    playSequence(audioSequence, () => { gameIndex++; nextGameQuestion(); });
   } else {
     feedback.innerText = `❌ 正解: ${correct.meaning}`;
     feedback.style.color = "red";
-    
     audioSequence.push({text: "Try again.", lang: "en-US"});
-    audioSequence.push({text: correctAudioText, lang: null}); 
-    audioSequence.push({text: "Next.", lang: "en-US"});
-    playSequence(audioSequence, () => {
-      gameIndex++;
-      nextGameQuestion();
-    });
+    audioSequence.push({text: correct.meaning, lang: null}); 
+    playSequence(audioSequence, () => { gameIndex++; nextGameQuestion(); });
   }
 }
 
-// ============================================
-// ✏️ スペリング / ⌨️ タイピング モード
-// ============================================
-
+// ✏️ スペリング
 function startSpellingMode(t){
-  studyTitle = t;
-  spellingRound = 1;
-  spellingIndex = 0;
-  spellingMissList = [];
+  studyTitle = t; spellingRound = 1; spellingIndex = 0; spellingMissList = [];
   spellingOrder = [...currentList.keys()].sort(()=>Math.random()-0.5);
-  
   let titleText = "✏️ スペリング";
   if(appMode === 'spelling3') titleText = "🖋️ スペリング (3文字)";
   if(appMode === 'typing') titleText = "⌨️ タイピング練習";
-
   document.getElementById("spellingModeTitle").innerText = titleText;
   document.getElementById("btnSpellingAnswer").style.display = (appMode === 'typing') ? 'none' : 'inline-block';
-
   show("spellingScreen");
   nextSpellingQuestion();
 }
-
 function nextSpellingQuestion(){
   document.getElementById("spellingFeedback").innerText = "";
   isTypingLocked = false;
-  
   const input = document.getElementById("inputAnswer");
-  input.disabled = false; 
-  input.value = "";
-  
+  input.disabled = false; input.value = "";
   document.getElementById("spellingRoundDisplay").innerText = spellingRound;
-
   if(spellingIndex >= spellingOrder.length){
     if(spellingRound === 1 && spellingMissList.length > 0){
-      alert("1巡目終了！\n間違えた単語のみ再テストします。");
+      alert("間違えた単語を再テストします。");
       spellingRound = 2;
       spellingOrder = spellingMissList.map(item => currentList.indexOf(item));
-      spellingMissList = []; 
-      spellingIndex = 0;
+      spellingMissList = []; spellingIndex = 0;
       nextSpellingQuestion();
       return;
     } else {
       saveClearCount(studyTitle);
-      alert("トレーニング終了です！お疲れ様でした！");
+      alert("トレーニング終了です！");
       return endStudy(true);
     }
   }
-
   const currentIdx = spellingOrder[spellingIndex];
   currentCorrectItem = currentList[currentIdx];
-
   const w = currentCorrectItem.word;
   const m = currentCorrectItem.meaning;
-  
-  let targetVal = w;
-  let hintVal = m;
-
-  if(hasJapanese(w) && !hasJapanese(m)){
-      targetVal = m;
-      hintVal = w;
-  } else if (isNum(w) && !isNum(m)) {
-      targetVal = m;
-      hintVal = w;
-  }
-  
+  let targetVal = w, hintVal = m;
+  if((hasJapanese(w) && !hasJapanese(m)) || (isNum(w) && !isNum(m))) { targetVal = m; hintVal = w; }
   spellingTargetWord = targetVal;
   spellingHintText = hintVal;
-
   if(appMode === 'typing'){
       currentMaskedData = { displayed: "", answer: spellingTargetWord }; 
       document.getElementById("spellingMeaning").innerText = spellingHintText;
       setImage("spellingImageArea", currentCorrectItem.image);
-      
       input.maxLength = spellingTargetWord.length;
       input.placeholder = ""; 
-      
       renderTypingFeedback(""); 
-
   } else {
       const modeLen = (appMode === 'spelling3') ? 3 : 2;
       currentMaskedData = createMaskedWord(spellingTargetWord, modeLen);
-      
       document.getElementById("spellingMeaning").innerText = spellingHintText;
       setImage("spellingImageArea", currentCorrectItem.image);
       document.getElementById("spellingQuestionText").innerText = currentMaskedData.displayed;
-      
       input.maxLength = currentMaskedData.answer.length;
       input.placeholder = "_".repeat(currentMaskedData.answer.length);
   }
-  
   input.focus();
   setTimeout(() => playSpellingAudio(), 400);
 }
-
-function playSpellingAudio() {
-  forceSpeak(spellingTargetWord);
-}
-
+function playSpellingAudio() { forceSpeak(spellingTargetWord); }
 function handleTypingInput(){
-    if(appMode !== 'typing') return;
-    if(isTypingLocked) return;
-
+    if(appMode !== 'typing' || isTypingLocked) return;
     const input = document.getElementById("inputAnswer");
     const val = toHalfWidth(input.value); 
-    
     renderTypingFeedback(val);
-
     if(val === spellingTargetWord){
-        isTypingLocked = true;
-        input.disabled = true;
-        
+        isTypingLocked = true; input.disabled = true;
         const feedback = document.getElementById("spellingFeedback");
         feedback.innerText = "⭕ Perfect!";
         feedback.style.color = "green";
-
-        playSequence([
-            {text: "Perfect!", lang: "en-US"},
-            {text: spellingTargetWord, lang: "en-US"},
-            {text: "Next.", lang: "en-US"}
-        ], () => {
-            spellingIndex++;
-            nextSpellingQuestion();
+        playSequence([{text: "Perfect!", lang: "en-US"},{text: spellingTargetWord, lang: "en-US"}], () => {
+            spellingIndex++; nextSpellingQuestion();
         });
     }
 }
-
 function renderTypingFeedback(currentInput){
     const target = spellingTargetWord;
-    const len = target.length;
     let html = "";
-    
-    for(let i=0; i<len; i++){
-        const targetChar = target[i];
+    for(let i=0; i<target.length; i++){
         if(i < currentInput.length){
-            const inputChar = currentInput[i];
-            if(inputChar === targetChar){
-                html += `<span class="char-correct">${inputChar}</span>`;
-            } else {
-                html += `<span class="char-wrong">${inputChar}</span>`;
-            }
-        } else {
-            html += `<span class="char-placeholder">_</span>`;
-        }
+            if(currentInput[i] === target[i]) html += `<span class="char-correct">${currentInput[i]}</span>`;
+            else html += `<span class="char-wrong">${currentInput[i]}</span>`;
+        } else html += `<span class="char-placeholder">_</span>`;
     }
     document.getElementById("spellingQuestionText").innerHTML = html;
 }
-
 function createMaskedWord(word, length){
-  if(!word || word.length <= length) {
-    return { displayed: "_".repeat(word ? word.length : length), answer: word };
-  }
-
+  if(!word || word.length <= length) return { displayed: "_".repeat(word ? word.length : length), answer: word };
   const isCon = c => /[bcdfghjklmnpqrstvwxyz]/i.test(c);
   let targetIndex = 0;
-
   if(length === 3) {
-    let found3 = -1;
-    for(let i=0; i < word.length - 2; i++){
-      if(isCon(word[i]) && isCon(word[i+1]) && isCon(word[i+2])){
-        found3 = i;
-        break;
-      }
-    }
-    if(found3 !== -1){
-      targetIndex = found3;
-    } else {
-      let found2 = -1;
-      for(let i=1; i < word.length - 1; i++){
-        if(isCon(word[i]) && isCon(word[i+1])){
-          found2 = i - 1; 
-          break;
-        }
-      }
-      if(found2 !== -1){
-        targetIndex = found2;
-      } else {
-        targetIndex = 0;
-      }
-    }
+    let f3 = -1;
+    for(let i=0; i<word.length-2; i++) if(isCon(word[i])&&isCon(word[i+1])&&isCon(word[i+2])){ f3=i; break; }
+    targetIndex = (f3!==-1)?f3:0;
   } else {
-    let candidates = [];
-    for(let i=0; i < word.length - 1; i++){
-      if(isCon(word[i]) && isCon(word[i+1])){
-        candidates.push(i);
-      }
-    }
-    if(candidates.length > 0){
-      targetIndex = candidates[Math.floor(Math.random() * candidates.length)];
-    } else {
-      targetIndex = 0;
-    }
+    let cand = [];
+    for(let i=0; i<word.length-1; i++) if(isCon(word[i])&&isCon(word[i+1])) cand.push(i);
+    targetIndex = cand.length?cand[Math.floor(Math.random()*cand.length)]:0;
   }
-
-  const answerStr = word.substr(targetIndex, length);
-  const maskedStr = word.substring(0, targetIndex) + "_".repeat(length) + word.substring(targetIndex + length);
-
-  return { displayed: maskedStr, answer: answerStr };
+  return { displayed: word.substring(0,targetIndex)+"_".repeat(length)+word.substring(targetIndex+length), answer: word.substr(targetIndex,length) };
 }
-
 function checkSpellingAnswer(){
   if(appMode === 'typing') return; 
-
   const input = document.getElementById("inputAnswer");
   if(input.disabled) return;
   input.disabled = true; 
-  
+  const normalizedInput = toHalfWidth(input.value).trim();
   const feedback = document.getElementById("spellingFeedback");
-  
-  const rawInput = input.value;
-  const normalizedInput = toHalfWidth(rawInput).trim();
-  const correctVal = currentMaskedData.answer;
-
-  let audioSequence = [];
-  const hasNext = (spellingIndex < spellingOrder.length - 1);
-
-  if (normalizedInput === correctVal) {
-      feedback.innerText = "⭕ Good job!";
-      feedback.style.color = "green";
-      audioSequence.push({text: "Good job!", lang: "en-US"});
-      audioSequence.push({text: spellingTargetWord, lang: "en-US"});
-      
-      playSequence(audioSequence, () => {
-          spellingIndex++;
-          nextSpellingQuestion();
+  if (normalizedInput === currentMaskedData.answer) {
+      feedback.innerText = "⭕ Good job!"; feedback.style.color = "green";
+      playSequence([{text: "Good job!", lang: "en-US"}, {text: spellingTargetWord, lang: "en-US"}], () => {
+          spellingIndex++; nextSpellingQuestion();
       });
   } else {
-      feedback.innerText = `❌ 正解: ${correctVal}`;
-      feedback.style.color = "red";
+      feedback.innerText = `❌ 正解: ${currentMaskedData.answer}`; feedback.style.color = "red";
       spellingMissList.push(currentCorrectItem); 
-
-      audioSequence.push({text: "Try again.", lang: "en-US"});
-      audioSequence.push({text: spellingTargetWord, lang: "en-US"});
-      
-      playSequence(audioSequence, () => {
-          spellingIndex++;
-          nextSpellingQuestion();
+      playSequence([{text: "Try again.", lang: "en-US"}, {text: spellingTargetWord, lang: "en-US"}], () => {
+          spellingIndex++; nextSpellingQuestion();
       });
   }
 }
 
-// ============================================
-// 🗣️ スピーキング練習
-// ============================================
-
-// ★追加: 安全にマイクを開始する補助関数
+// 🗣️ スピーキング
 function startListeningSafe() {
-  if (!recognition) return;
-  if (isListening) return;
-  try {
-    recognition.start();
-  } catch (e) {
-    console.log("Mic start info:", e);
-  }
+  if (!recognition || isListening) return;
+  try { recognition.start(); } catch (e) {}
 }
-
-// ★追加: 無音検知時の処理
 function handleSilenceTimeout(){
-    // 既に別の画面に移動していたら無視
     if(appMode !== 'speaking') return;
-
-    if(recognition) {
-        try { recognition.stop(); } catch(e){}
-    }
-
-    // まだ1回もリトライしていない場合(1回目は自動再試行)
+    if(recognition) try { recognition.stop(); } catch(e){}
     if(speakingRetryCount < 1){
         speakingRetryCount++;
-        // "I can't hear you. Try again." と言ってから再開
-        playSequence([{text: "I can't hear you. Try again.", lang: "en-US"}], () => {
-             startListeningSafe();
-        });
+        playSequence([{text: "I can't hear you. Try again.", lang: "en-US"}], () => { startListeningSafe(); });
     } else {
-        // 2回目以降は手動モードへ
         document.getElementById("micStatusText").innerText = "タップして入力";
         isListening = false;
         document.getElementById("btnMic").classList.remove("mic-active");
     }
 }
-
-
 function startSpeakingMode(t){
-  studyTitle = t;
-  speakingIndex = 0;
+  studyTitle = t; speakingIndex = 0; speakingRetryCount = 0;
   speakingOrder = [...currentList.keys()].sort(()=>Math.random()-0.5);
-  speakingRetryCount = 0; // 初期化
-  
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) {
-      alert("お使いのブラウザは音声認識に対応していません。\nGoogle Chrome等をご利用ください。");
-      return endStudy();
-  }
-  
+  if (!SpeechRecognition) { alert("音声認識非対応ブラウザです。"); return endStudy(); }
   recognition = new SpeechRecognition();
   recognition.lang = 'en-US';
-  recognition.interimResults = false; 
-  recognition.maxAlternatives = 1;
-
   recognition.onstart = function() {
-    isListening = true;
-    document.getElementById("btnMic").classList.add("mic-active");
+    isListening = true; document.getElementById("btnMic").classList.add("mic-active");
     document.getElementById("micStatusText").innerText = "聞いています...";
-    document.getElementById("speakingTranscript").innerText = "...";
-    
-    // ★追加: 5秒タイマーセット
-    clearTimeout(silenceTimer);
-    silenceTimer = setTimeout(handleSilenceTimeout, 5000);
+    clearTimeout(silenceTimer); silenceTimer = setTimeout(handleSilenceTimeout, 5000);
   };
-  
   recognition.onend = function() {
-    clearTimeout(silenceTimer); // ★追加: タイマー解除
-    isListening = false;
+    clearTimeout(silenceTimer); isListening = false;
     document.getElementById("btnMic").classList.remove("mic-active");
-    // handleSilenceTimeoutで自動再開される場合は、その処理が後続します。
-    // 通常終了の場合は以下の表示になります。
-    document.getElementById("micStatusText").innerText = "タップして発音";
   };
-  
-  recognition.onerror = function(event) {
-    clearTimeout(silenceTimer); // ★追加: タイマー解除
-    console.log("Mic Error:", event.error);
-    document.getElementById("speakingTranscript").innerText = "待機中";
-    
-    // ★追加: ブラウザが「無音」と判断して停止した場合も同様に扱う
-    if(event.error === 'no-speech'){
-        handleSilenceTimeout();
-        return;
-    }
-    if(event.error === 'not-allowed') alert("マイクの使用が許可されていません");
+  recognition.onerror = function(e) {
+    clearTimeout(silenceTimer); if(e.error === 'no-speech') handleSilenceTimeout();
   };
-  
-  recognition.onresult = function(event) {
-    clearTimeout(silenceTimer); // ★追加: 音声検知したのでタイマー解除
-    speakingRetryCount = 0; // ★追加: 入力があったのでリトライ回数リセット
-    const transcript = event.results[0][0].transcript;
+  recognition.onresult = function(e) {
+    clearTimeout(silenceTimer); speakingRetryCount = 0;
+    const transcript = e.results[0][0].transcript;
     document.getElementById("speakingTranscript").innerText = `"${transcript}"`;
     checkSpeakingAnswer(transcript);
   };
-
   show("speakingScreen");
   nextSpeakingQuestion();
 }
-
 function nextSpeakingQuestion(){
   document.getElementById("speakingFeedback").innerText = "";
   document.getElementById("speakingTranscript").innerText = "(ここに認識された文字が出ます)";
   document.getElementById("speakingRoundDisplay").innerText = (speakingIndex + 1) + " / " + speakingOrder.length;
-  speakingRetryCount = 0; // ★追加: 新しい問題なのでリセット
-  
   if(speakingIndex >= speakingOrder.length){
-      saveClearCount(studyTitle);
-      alert("スピーキング練習終了！Good job!");
-      return endStudy(true);
+      saveClearCount(studyTitle); alert("Good job!"); return endStudy(true);
   }
-
-  const currentIdx = speakingOrder[speakingIndex];
-  const item = currentList[currentIdx];
-  
-  let target = item.word;
-  let hint = item.meaning;
-  if(hasJapanese(target) && !hasJapanese(hint)) { target = hint; hint = item.word; }
-  else if(isNum(target) && !isNum(hint)) { target = hint; hint = item.word; }
-
+  const item = currentList[speakingOrder[speakingIndex]];
+  let target = item.word, hint = item.meaning;
+  if((hasJapanese(target) && !hasJapanese(hint)) || (isNum(target) && !isNum(hint))) { target = hint; hint = item.word; }
   speakingTargetWord = target;
-  
   document.getElementById("speakingMeaning").innerText = hint;
   setImage("speakingImageArea", item.image);
-
-  // 自動でマイクをON
-  setTimeout(() => {
-      startListeningSafe();
-  }, 500);
+  setTimeout(startListeningSafe, 500);
 }
-
-function toggleListening(){
-  if(isListening){
-    recognition.stop();
-  } else {
-    // 手動タップの場合もリセット
-    speakingRetryCount = 0; 
-    startListeningSafe();
-  }
-}
+function toggleListening(){ isListening ? recognition.stop() : (speakingRetryCount=0, startListeningSafe()); }
 
 function checkSpeakingAnswer(userSpeech){
-  // 1. 標準的なクリーニング
   const cleanSpeech = cleanText(userSpeech);
   const cleanTarget = cleanText(speakingTargetWord);
-  
-  // 2. 同音異義語判定用の準備
   const rawSpeech = userSpeech.toLowerCase().trim();
   const rawTarget = speakingTargetWord.toLowerCase().trim();
-  
-  // 3. 同音異義語リストにあるかチェック
   const isHomophone = homophones[rawTarget] && homophones[rawTarget].includes(rawSpeech);
 
-  const feedback = document.getElementById("speakingFeedback");
-  
   if(recognition) recognition.stop();
-
+  const feedback = document.getElementById("speakingFeedback");
   if(cleanSpeech === cleanTarget || isHomophone) {
-      feedback.innerText = "⭕ Good!! " + speakingTargetWord;
-      feedback.style.color = "green";
-      
-      playSequence([
-        {text: "Good!", lang: "en-US"},
-        {text: speakingTargetWord, lang: "en-US"} 
-      ], () => {
-        speakingIndex++;
-        nextSpeakingQuestion();
+      feedback.innerText = "⭕ Good!! " + speakingTargetWord; feedback.style.color = "green";
+      playSequence([{text: "Good!", lang: "en-US"},{text: speakingTargetWord, lang: "en-US"}], () => {
+        speakingIndex++; nextSpeakingQuestion();
       });
   } else {
-      feedback.innerText = `❌ Try again...`;
-      feedback.style.color = "red";
-      forceSpeak("Try again");
-
-      setTimeout(() => {
-          startListeningSafe();
-      }, 1500);
+      feedback.innerText = `❌ Try again...`; feedback.style.color = "red";
+      forceSpeak("Try again"); setTimeout(startListeningSafe, 1500);
   }
 }
+function playSpeakingTarget(){ forceSpeak(speakingTargetWord); }
+function skipSpeaking(){ forceSpeak(speakingTargetWord); setTimeout(()=>{ speakingIndex++; nextSpeakingQuestion(); }, 1000); }
 
-function playSpeakingTarget(){
-    forceSpeak(speakingTargetWord);
-}
-function skipSpeaking(){
-    forceSpeak(speakingTargetWord);
-    setTimeout(()=>{
-        speakingIndex++;
-        nextSpeakingQuestion();
-    }, 1000);
-}
-
-
-// ============================================
-// 共通機能: 音声 / 終了
-// ============================================
-
-function speakQuestion(){
-  const t=currentList[studyOrder[studyIndex]].word;
-  forceSpeak(t);
-}
-function speakAnswer(){
-  const t=currentList[studyOrder[studyIndex]].meaning;
-  forceSpeak(t);
-}
-
+// 共通
+function speakQuestion(){ forceSpeak(currentList[studyOrder[studyIndex]].word); }
+function speakAnswer(){ forceSpeak(currentList[studyOrder[studyIndex]].meaning); }
 function forceSpeak(text) {
-  if(!text) return;
-  if ('speechSynthesis' in window) {
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    if(hasJapanese(text)){
-      u.lang = 'ja-JP';
-    } else {
-      u.lang = 'en-US';
-    }
-    u.rate = 1.0; 
+  if(!text || !('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = hasJapanese(text) ? 'ja-JP' : 'en-US';
+  window.speechSynthesis.speak(u);
+}
+function playSequence(list, onComplete){
+  if(!list || !list.length){ if(onComplete) onComplete(); return; }
+  let idx = 0;
+  function playNext(){
+    if(idx >= list.length){ if(onComplete) onComplete(); return; }
+    const u = new SpeechSynthesisUtterance(list[idx].text);
+    u.lang = list[idx].lang || (hasJapanese(list[idx].text) ? 'ja-JP' : 'en-US');
+    u.onend = () => { idx++; setTimeout(playNext, 300); };
+    u.onerror = () => { idx++; playNext(); };
     window.speechSynthesis.speak(u);
   }
+  window.speechSynthesis.cancel(); playNext();
 }
-
-function playSequence(list, onComplete){
-  if(!list || !list.length){
-    if(onComplete) onComplete();
-    return;
-  }
-  let idx = 0;
-  
-  function playNext(){
-    if(idx >= list.length){
-      if(onComplete) onComplete();
-      return;
-    }
-    const item = list[idx];
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(item.text);
-      if(item.lang) u.lang = item.lang;
-      else u.lang = hasJapanese(item.text) ? 'ja-JP' : 'en-US';
-      
-      u.onend = () => {
-        idx++;
-        setTimeout(playNext, 300);
-      };
-      u.onerror = () => { 
-        idx++;
-        playNext();
-      };
-      window.speechSynthesis.speak(u);
-    } else {
-      idx++;
-      playNext();
-    }
-  }
-  playNext();
-}
-
 function playBeep() {
   if(!audioCtx) return;
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
-  osc.connect(gain);
-  gain.connect(audioCtx.destination);
-  osc.type = "sine";
+  osc.connect(gain); gain.connect(audioCtx.destination);
   osc.frequency.setValueAtTime(880, audioCtx.currentTime); 
   gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-  osc.start();
-  osc.stop(audioCtx.currentTime + 0.1);
+  osc.start(); osc.stop(audioCtx.currentTime + 0.1);
 }
-
-function stopUrgentTimer(){
-  urgentTimeouts.forEach(t => clearTimeout(t));
-  urgentTimeouts = [];
-}
+function stopUrgentTimer(){ urgentTimeouts.forEach(t => clearTimeout(t)); urgentTimeouts = []; }
 function handleTimeUp(){
-  const correct = currentCorrectItem;
-  document.getElementById("gameFeedback").innerText = `⏰ 時間切れ... 正解: ${correct.meaning}`;
-  document.getElementById("gameFeedback").style.color = "red";
-  
   const area = document.getElementById("choicesArea");
   Array.from(area.children).forEach(b => b.disabled = true);
-
-  playSequence([
-      {text: "Time's up.", lang: "en-US"},
-      {text: correct.meaning, lang: null}
-  ], () => {
-      gameIndex++;
-      nextGameQuestion();
+  document.getElementById("gameFeedback").innerText = `⏰ 時間切れ... 正解: ${currentCorrectItem.meaning}`;
+  playSequence([{text: "Time's up.", lang: "en-US"},{text: currentCorrectItem.meaning, lang: null}], () => {
+      gameIndex++; nextGameQuestion();
   });
 }
-
 async function endStudy(completed = false){
-  stopUrgentTimer();
-  // ★追加: 終了時にマイクが動いていたら止める
-  if(recognition) { try{recognition.abort();}catch(e){} }
+  stopUrgentTimer(); if(recognition) try{recognition.abort();}catch(e){}
   clearTimeout(silenceTimer);
-
   if(completed){
-    const duration = Math.floor((Date.now() - studyStartTime)/1000);
-    await saveStudyTime(duration);
-    
-    // クリアカウントを再読み込みしてリストを更新
+    await saveStudyTime(Math.floor((Date.now() - studyStartTime)/1000));
     loadedCounts = await loadClearCounts();
-    renderLists();
-    
-    await updateStudyInfo();
-    await drawStudyChart();
+    renderLists(); await updateStudyInfo(); await drawStudyChart();
   }
-  
   show("listScreen");
 }
-
 function show(id){
   document.querySelectorAll(".screen").forEach(e=>e.style.display="none");
-  document.getElementById(id).style.display="block";
-  window.scrollTo(0,0);
+  document.getElementById(id).style.display="block"; window.scrollTo(0,0);
 }
-
-window.onload = function(){
-    // AuthリスナーでloadAllListsが呼ばれる
-};
 </script>
 </body>
 </html>
-
-

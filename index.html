@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>英単語暗記アプリ (Speech Update 2026)</title>
+<title>英単語暗記アプリ (Speech Update)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
 <style>
@@ -105,10 +105,10 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
 }
 
 .big{
-  font-size: 10vw;
-  margin: 3vw 0;
-  text-align: center;
-  cursor: pointer;
+  font-size:10vw;
+  margin:3vw 0;
+  text-align:center;
+  cursor:pointer;
   font-weight: bold;
   word-break: break-word;
   min-height: 12vw; 
@@ -543,29 +543,82 @@ let speakingIndex = 0;
 let recognition = null;
 let isListening = false;
 let speakingTargetWord = "";
+// ★追加: 無音検知とリトライ用変数
 let silenceTimer = null;
 let speakingRetryCount = 0;
 
 // === 同音異義語・数字変換リスト (Speaking Mode用) ===
 const homophones = {
+    // フルーツ・植物
+    "pear": ["pair", "pare"],
+    "flower": ["flour"],
+    "berry": ["bury"],
+    "currant": ["current"],
+    "melon": [], 
+
+    // 動物
+    "bear": ["bare"],
+    "deer": ["dear"],
+    "ant": ["aunt"],
+    "horse": ["hoarse"],
+
+    // 色
+    "red": ["read"], // read(過去形)
+    "blue": ["blew"],
+
     // 数字（単語 -> 他の綴り、または数字記号）
-    "one": ["won", "1", "want", "when", "on"],
-    "two": ["to", "too", "2", "through"],
-    "three": ["3", "tree", "the", "free"],
-    "four": ["for", "fore", "4", "full"],
-    "five": ["5", "fine", "fire"],
-    "six": ["6", "sick", "sex"],
+    "one": ["won", "1"],
+    "two": ["to", "too", "2"],
+    "three": ["3"],
+    "four": ["for", "fore", "4"],
+    "five": ["5"],
+    "six": ["6"],
     "seven": ["7"],
-    "eight": ["ate", "8", "it", "at"],
-    "nine": ["9", "night", "line"],
-    "ten": ["10", "pen", "then"],
-    "may": ["me", "my", "made", "mets", "mail"],
-    // ...その他省略なし...
-    "pear": ["pair", "pare"], "flower": ["flour"], "berry": ["bury"], "currant": ["current"],
-    "bear": ["bare"], "deer": ["dear"], "ant": ["aunt"], "horse": ["hoarse"],
-    "red": ["read"], "blue": ["blew"], "sun": ["son"], "sea": ["see"],
-    "right": ["write", "wright"], "buy": ["by", "bye"], "eye": ["i"], "hour": ["our"],
-    "know": ["no"], "new": ["knew"], "meat": ["meet"], "week": ["weak"], "where": ["wear"]
+    "eight": ["ate", "8"],
+    "nine": ["9"],
+    "ten": ["10"],
+    "zero": ["0"],
+    "eleven": ["11"],
+    "twelve": ["12"],
+    "thirteen": ["13"],
+    "fourteen": ["14"],
+    "fifteen": ["15"],
+    "sixteen": ["16"],
+    "seventeen": ["17"],
+    "eighteen": ["18"],
+    "nineteen": ["19"],
+    "twenty": ["20"],
+    "thirty": ["30"],
+    "forty": ["40"],
+    "fifty": ["50"],
+    "sixty": ["60"],
+    "seventy": ["70"],
+    "eighty": ["80"],
+    "ninety": ["90"],
+    "one hundred": ["100"],
+    "one thousand": ["1000", "1,000"],
+    "ten thousand": ["10000", "10,000", "10 thousand"],
+    "one hundred thousand": ["100000", "100,000", "a hundred thousand"],
+    "one million":["1,000,000", "1000000", "1 million"],
+    "ten million":["10,000,000", "10000000", "10 million"],
+    "one hundred million":["100,000,000", "100000000", "100 million", "a hundred million"],
+    "one billion":["1,000,000,000", "1000000000", "1 billion"],
+    "ten billion":["10,000,000,000", "10000000000", "10 billion"],
+    "one hundred billion":["100,000,000,000", "100000000000", "100 billion", "a hundred billion"],
+  
+    // その他頻出単語
+    "sun": ["son"],
+    "sea": ["see"],
+    "right": ["write", "wright"],
+    "buy": ["by", "bye"],
+    "eye": ["i"],
+    "hour": ["our"],
+    "know": ["no"],
+    "new": ["knew"],
+    "meat": ["meet"],
+    "week": ["weak"],
+    "May": ["may", "Mets"],
+    "where": ["wear"]
 };
 
 // ===== 認証・同期ロジック (Auth) =====
@@ -697,6 +750,7 @@ async function drawStudyChart(){
   });
 }
 
+// 星のHTMLを生成する関数
 function getStarHtml(count) {
     if(count >= 15) return `<span class="star-gold">★</span>`;
     if(count >= 10) return `<span class="star-silver">★</span>`;
@@ -704,29 +758,44 @@ function getStarHtml(count) {
     return "";
 }
 
+// リストを描画する関数
 function renderLists() {
     const isSpelling = (appMode === 'spelling' || appMode === 'spelling3' || appMode === 'typing');
     const isSpeaking = (appMode === 'speaking');
+    
     const basicContainer = document.getElementById("basicList");
     basicContainer.innerHTML = "";
+    
     let visibleBasicCount = 0;
 
     loadedBasicList.forEach(i => {
         const title = i.title || "No Title";
         const count = loadedCounts[title] || 0;
-        if(isSpelling && count < 5) return;
+        
+        if(isSpelling && count < 5) {
+            return;
+        }
+
         const b = document.createElement("button");
         b.className = "btn-blue";
+        
         const countText = count > 0 ? `（${count}回クリア）` : "";
         b.innerHTML = title + countText + getStarHtml(count);
-        b.onclick = () => startSession(i.file.startsWith("backup") ? "" : "lists", title, i.file, i.data);
+        
+        if(i.data){
+            b.onclick = () => startSession("lists", title, i.file, i.data);
+        } else {
+            b.onclick = () => startSession("lists", title, i.file, null);
+        }
         basicContainer.appendChild(b);
         visibleBasicCount++;
     });
 
     if(isSpelling && visibleBasicCount === 0) {
         const msg = document.createElement("div");
-        msg.style.color = "#e91e63"; msg.style.fontWeight = "bold"; msg.style.marginTop = "20px";
+        msg.style.color = "#e91e63";
+        msg.style.fontWeight = "bold";
+        msg.style.marginTop = "20px";
         msg.style.gridColumn = "1 / -1"; 
         msg.innerText = "５回クリアした基本コースのリストが表示されます。";
         basicContainer.appendChild(msg);
@@ -742,11 +811,18 @@ function renderLists() {
         loadedInterList.forEach(i => {
             const title = i.title || "No Title";
             const count = loadedCounts[title] || 0;
+            
             const b = document.createElement("button");
             b.className = "btn-blue";
+            
             const countText = count > 0 ? `（${count}回クリア）` : "";
             b.innerHTML = title + countText + getStarHtml(count);
-            b.onclick = () => startSession("lists2", title, i.file, i.data);
+            
+            if(i.data){
+                b.onclick = () => startSession("lists2", title, i.file, i.data);
+            } else {
+                b.onclick = () => startSession("lists2", title, i.file, null);
+            }
             interContainer.appendChild(b);
         });
     }
@@ -765,13 +841,17 @@ async function loadAllLists(){
   const statusDiv = document.getElementById("loadingStatus");
   statusDiv.innerText = "データ読込中...";
   statusDiv.style.color = "blue";
+
   let basic = await loadCSV("lists/index.csv");
   let inter = await loadCSV("lists2/index.csv");
+  
   let usedBackup = false;
   if(!basic) { basic = BACKUP_DATA.basic; usedBackup = true; }
   if(!inter) { inter = BACKUP_DATA.inter; usedBackup = true; }
+
   loadedBasicList = basic;
   loadedInterList = inter;
+
   if(usedBackup){
     statusDiv.innerHTML = "⚠️ ファイル読込失敗。<br>予備データで起動しました。";
     statusDiv.style.color = "red";
@@ -780,6 +860,7 @@ async function loadAllLists(){
     statusDiv.style.color = "green";
     setTimeout(()=>statusDiv.style.display="none", 2000);
   }
+
   loadedCounts = await loadClearCounts();
   renderLists();
   await updateStudyInfo();
@@ -789,15 +870,26 @@ async function loadAllLists(){
 
 async function startSession(folder, title, file, directData){
   studyStartTime = Date.now();
-  if(directData) currentList = JSON.parse(JSON.stringify(directData));
-  else {
+  
+  if(directData){
+    currentList = JSON.parse(JSON.stringify(directData));
+  } else {
     currentList = await loadCSV(`${folder}/${file}`);
-    if(!currentList){ alert("このリストのファイルが見つかりません"); return; }
+    if(!currentList){
+      alert("このリストのファイルが見つかりません");
+      return;
+    }
   }
-  if(appMode === 'study') startStudyMode(title);
-  else if(appMode === 'spelling' || appMode === 'spelling3' || appMode === 'typing') startSpellingMode(title);
-  else if(appMode === 'speaking') startSpeakingMode(title);
-  else startGameMode(title);
+
+  if(appMode === 'study'){
+    startStudyMode(title);
+  } else if(appMode === 'spelling' || appMode === 'spelling3' || appMode === 'typing'){
+    startSpellingMode(title);
+  } else if(appMode === 'speaking'){
+    startSpeakingMode(title);
+  } else {
+    startGameMode(title);
+  }
 }
 
 function setImage(containerId, imageUrl) {
@@ -811,7 +903,7 @@ function setImage(containerId, imageUrl) {
   }
 }
 
-// ⚡ 速攻モード (ロジック維持)
+// ⚡ 速攻モード
 let studyOrder=[], studyIndex=0, dontKnow=[], round=1;
 function startStudyMode(t){
   studyTitle=t; round=1; studyIndex=0; dontKnow=[];
@@ -850,10 +942,11 @@ function showAnswer(){
   document.getElementById("answerMeaning").innerText=currentList[studyOrder[studyIndex]].meaning; 
 }
 
-// 🎮 4択ゲーム (ロジック維持)
+// 🎮 4択ゲーム
 let gameIndex=0, gameScore=0, gameOrder=[];
 function startGameMode(t){
-  studyTitle = t; gameIndex=0; gameScore=0;
+  studyTitle = t;
+  gameIndex=0; gameScore=0;
   gameOrder=[...currentList.keys()].sort(()=>Math.random()-0.5);
   document.getElementById("gameScore").innerText = gameScore;
   show("gameScreen");
@@ -863,8 +956,12 @@ function nextGameQuestion(){
   document.getElementById("gameFeedback").innerText = "";
   if(gameIndex >= gameOrder.length){
     let msg = `ゲーム終了！\nあなたのスコア: ${gameScore} / ${gameOrder.length}`;
-    if(gameScore === gameOrder.length){ saveClearCount(studyTitle); msg += "\n\n🎉 Perfect!!"; }
-    alert(msg); return endStudy(true);
+    if(gameScore === gameOrder.length){
+      saveClearCount(studyTitle);
+      msg += "\n\n🎉 Perfect!!";
+    }
+    alert(msg);
+    return endStudy(true);
   }
   const correctIdx = gameOrder[gameIndex];
   currentCorrectItem = currentList[correctIdx];
@@ -887,16 +984,20 @@ function nextGameQuestion(){
   let choices = [currentCorrectItem];
   let loop=0;
   while(choices.length < 4 && loop < 100){
-    loop++; const r = Math.floor(Math.random() * currentList.length);
+    loop++;
+    const r = Math.floor(Math.random() * currentList.length);
     const item = currentList[r];
-    if(!choices.includes(item) && item.meaning !== currentCorrectItem.meaning) choices.push(item);
+    if(!choices.includes(item) && item.meaning !== currentCorrectItem.meaning){
+      choices.push(item);
+    }
   }
   choices.sort(()=>Math.random()-0.5);
   const area = document.getElementById("choicesArea");
   area.innerHTML = "";
   choices.forEach(c => {
     const btn = document.createElement("button");
-    btn.className = "btn-choice"; btn.innerText = c.meaning;
+    btn.className = "btn-choice";
+    btn.innerText = c.meaning;
     btn.onclick = () => checkGameAnswer(c, currentCorrectItem);
     area.appendChild(btn);
   });
@@ -908,6 +1009,7 @@ function gameHint1(){
 }
 function gameHint2(){ forceSpeak(currentCorrectItem.word); }
 function gameHint3(){ forceSpeak(currentCorrectItem.meaning); }
+
 function checkGameAnswer(selected, correct){
   stopUrgentTimer();
   const area = document.getElementById("choicesArea");
@@ -916,19 +1018,24 @@ function checkGameAnswer(selected, correct){
   const isLastQuestion = (gameIndex >= gameOrder.length - 1);
   let audioSequence = [];
   if(selected.word === correct.word){
-    gameScore++; document.getElementById("gameScore").innerText = gameScore;
-    feedback.innerText = "⭕ Excellent!"; feedback.style.color = "green";
-    audioSequence.push({text: "Good job!", lang: "en-US"}); audioSequence.push({text: correct.meaning, lang: null}); 
+    gameScore++;
+    document.getElementById("gameScore").innerText = gameScore;
+    feedback.innerText = "⭕ Excellent!";
+    feedback.style.color = "green";
+    audioSequence.push({text: "Good job!", lang: "en-US"});
+    audioSequence.push({text: correct.meaning, lang: null}); 
     if(!isLastQuestion) audioSequence.push({text: "Next question.", lang: "en-US"});
     playSequence(audioSequence, () => { gameIndex++; nextGameQuestion(); });
   } else {
-    feedback.innerText = `❌ 正解: ${correct.meaning}`; feedback.style.color = "red";
-    audioSequence.push({text: "Try again.", lang: "en-US"}); audioSequence.push({text: correct.meaning, lang: null}); 
+    feedback.innerText = `❌ 正解: ${correct.meaning}`;
+    feedback.style.color = "red";
+    audioSequence.push({text: "Try again.", lang: "en-US"});
+    audioSequence.push({text: correct.meaning, lang: null}); 
     playSequence(audioSequence, () => { gameIndex++; nextGameQuestion(); });
   }
 }
 
-// ✏️ スペリング (ロジック維持)
+// ✏️ スペリング
 function startSpellingMode(t){
   studyTitle = t; spellingRound = 1; spellingIndex = 0; spellingMissList = [];
   spellingOrder = [...currentList.keys()].sort(()=>Math.random()-0.5);
@@ -937,33 +1044,43 @@ function startSpellingMode(t){
   if(appMode === 'typing') titleText = "⌨️ タイピング練習";
   document.getElementById("spellingModeTitle").innerText = titleText;
   document.getElementById("btnSpellingAnswer").style.display = (appMode === 'typing') ? 'none' : 'inline-block';
-  show("spellingScreen"); nextSpellingQuestion();
+  show("spellingScreen");
+  nextSpellingQuestion();
 }
 function nextSpellingQuestion(){
   document.getElementById("spellingFeedback").innerText = "";
-  isTypingLocked = false; const input = document.getElementById("inputAnswer");
+  isTypingLocked = false;
+  const input = document.getElementById("inputAnswer");
   input.disabled = false; input.value = "";
   document.getElementById("spellingRoundDisplay").innerText = spellingRound;
   if(spellingIndex >= spellingOrder.length){
     if(spellingRound === 1 && spellingMissList.length > 0){
-      alert("間違えた単語を再テストします。"); spellingRound = 2;
+      alert("間違えた単語を再テストします。");
+      spellingRound = 2;
       spellingOrder = spellingMissList.map(item => currentList.indexOf(item));
-      spellingMissList = []; spellingIndex = 0; nextSpellingQuestion(); return;
+      spellingMissList = []; spellingIndex = 0;
+      nextSpellingQuestion();
+      return;
     } else {
-      saveClearCount(studyTitle); alert("トレーニング終了です！"); return endStudy(true);
+      saveClearCount(studyTitle);
+      alert("トレーニング終了です！");
+      return endStudy(true);
     }
   }
   const currentIdx = spellingOrder[spellingIndex];
   currentCorrectItem = currentList[currentIdx];
-  const w = currentCorrectItem.word; const m = currentCorrectItem.meaning;
+  const w = currentCorrectItem.word;
+  const m = currentCorrectItem.meaning;
   let targetVal = w, hintVal = m;
   if((hasJapanese(w) && !hasJapanese(m)) || (isNum(w) && !isNum(m))) { targetVal = m; hintVal = w; }
-  spellingTargetWord = targetVal; spellingHintText = hintVal;
+  spellingTargetWord = targetVal;
+  spellingHintText = hintVal;
   if(appMode === 'typing'){
       currentMaskedData = { displayed: "", answer: spellingTargetWord }; 
       document.getElementById("spellingMeaning").innerText = spellingHintText;
       setImage("spellingImageArea", currentCorrectItem.image);
-      input.maxLength = spellingTargetWord.length; input.placeholder = ""; 
+      input.maxLength = spellingTargetWord.length;
+      input.placeholder = ""; 
       renderTypingFeedback(""); 
   } else {
       const modeLen = (appMode === 'spelling3') ? 3 : 2;
@@ -974,7 +1091,8 @@ function nextSpellingQuestion(){
       input.maxLength = currentMaskedData.answer.length;
       input.placeholder = "_".repeat(currentMaskedData.answer.length);
   }
-  input.focus(); setTimeout(() => playSpellingAudio(), 400);
+  input.focus();
+  setTimeout(() => playSpellingAudio(), 400);
 }
 function playSpellingAudio() { forceSpeak(spellingTargetWord); }
 function handleTypingInput(){
@@ -985,14 +1103,16 @@ function handleTypingInput(){
     if(val === spellingTargetWord){
         isTypingLocked = true; input.disabled = true;
         const feedback = document.getElementById("spellingFeedback");
-        feedback.innerText = "⭕ Perfect!"; feedback.style.color = "green";
+        feedback.innerText = "⭕ Perfect!";
+        feedback.style.color = "green";
         playSequence([{text: "Perfect!", lang: "en-US"},{text: spellingTargetWord, lang: "en-US"}], () => {
             spellingIndex++; nextSpellingQuestion();
         });
     }
 }
 function renderTypingFeedback(currentInput){
-    const target = spellingTargetWord; let html = "";
+    const target = spellingTargetWord;
+    let html = "";
     for(let i=0; i<target.length; i++){
         if(i < currentInput.length){
             if(currentInput[i] === target[i]) html += `<span class="char-correct">${currentInput[i]}</span>`;
@@ -1037,7 +1157,7 @@ function checkSpellingAnswer(){
   }
 }
 
-// 🗣️ スピーキング (★大幅改善)
+// 🗣️ スピーキング
 function startListeningSafe() {
   if (!recognition || isListening) return;
   try { recognition.start(); } catch (e) {}
@@ -1050,91 +1170,38 @@ function handleSilenceTimeout(){
         playSequence([{text: "I can't hear you. Try again.", lang: "en-US"}], () => { startListeningSafe(); });
     } else {
         document.getElementById("micStatusText").innerText = "タップして入力";
-        isListening = false; document.getElementById("btnMic").classList.remove("mic-active");
+        isListening = false;
+        document.getElementById("btnMic").classList.remove("mic-active");
     }
 }
 function startSpeakingMode(t){
   studyTitle = t; speakingIndex = 0; speakingRetryCount = 0;
   speakingOrder = [...currentList.keys()].sort(()=>Math.random()-0.5);
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const SpeechGrammarList = window.SpeechGrammarList || window.webkitSpeechGrammarList;
   if (!SpeechRecognition) { alert("音声認識非対応ブラウザです。"); return endStudy(); }
-  
   recognition = new SpeechRecognition();
   recognition.lang = 'en-US';
-  recognition.continuous = true; // 短い単語のために継続
-  recognition.interimResults = true; // 中間結果を利用
-
-  // 【改善】文法リストの設定（5文字以下の単語を抽出）
-  if (SpeechGrammarList) {
-    const grammarList = new SpeechGrammarList();
-    const shortWords = currentList.map(item => item.word).filter(w => w.length <= 5);
-    if(shortWords.length > 0) {
-      const grammar = `#JSGF V1.0; grammar shortWords; public <word> = ${shortWords.join(' | ')} ;`;
-      grammarList.addFromString(grammar, 1);
-      recognition.grammars = grammarList;
-    }
-  }
-
   recognition.onstart = function() {
     isListening = true; document.getElementById("btnMic").classList.add("mic-active");
     document.getElementById("micStatusText").innerText = "聞いています...";
-    clearTimeout(silenceTimer); silenceTimer = setTimeout(handleSilenceTimeout, 6000);
+    clearTimeout(silenceTimer); silenceTimer = setTimeout(handleSilenceTimeout, 5000);
   };
   recognition.onend = function() {
     clearTimeout(silenceTimer); isListening = false;
     document.getElementById("btnMic").classList.remove("mic-active");
-    document.getElementById("micStatusText").innerText = "タップして発音";
   };
   recognition.onerror = function(e) {
     clearTimeout(silenceTimer); if(e.error === 'no-speech') handleSilenceTimeout();
   };
   recognition.onresult = function(e) {
-    clearTimeout(silenceTimer); 
-    let lastResultIndex = e.results.length - 1;
-    let transcript = e.results[lastResultIndex][0].transcript.trim();
+    clearTimeout(silenceTimer); speakingRetryCount = 0;
+    const transcript = e.results[0][0].transcript;
     document.getElementById("speakingTranscript").innerText = `"${transcript}"`;
-    
-    // 【改善】中間結果でも正解なら即座に抜ける
-    if (checkSpeakingAnswerSilently(transcript)) {
-        recognition.stop();
-        handleCorrectSpeaking();
-    }
+    checkSpeakingAnswer(transcript);
   };
-  show("speakingScreen"); nextSpeakingQuestion();
+  show("speakingScreen");
+  nextSpeakingQuestion();
 }
-
-function checkSpeakingAnswerSilently(userSpeech) {
-  const cleanSpeech = cleanText(userSpeech);
-  const cleanTarget = cleanText(speakingTargetWord);
-  const rawSpeech = userSpeech.toLowerCase().trim();
-  const rawTarget = speakingTargetWord.toLowerCase().trim();
-  const isHomophone = homophones[rawTarget] && homophones[rawTarget].includes(rawSpeech);
-  // 短い単語の場合、認識文字列の中に含まれていればOKとする (例: "the one" -> "one")
-  const isIncluded = (speakingTargetWord.length <= 5 && rawSpeech.split(' ').includes(rawTarget));
-
-  return (cleanSpeech === cleanTarget || isHomophone || isIncluded);
-}
-
-function handleCorrectSpeaking() {
-  const feedback = document.getElementById("speakingFeedback");
-  feedback.innerText = "⭕ Good!! " + speakingTargetWord; feedback.style.color = "green";
-  playSequence([{text: "Good!", lang: "en-US"},{text: speakingTargetWord, lang: "en-US"}], () => {
-    speakingIndex++; nextSpeakingQuestion();
-  });
-}
-
-function checkSpeakingAnswer(userSpeech){
-  // 以前のボタン押下時などの一括判定用
-  if(checkSpeakingAnswerSilently(userSpeech)) {
-    handleCorrectSpeaking();
-  } else {
-    const feedback = document.getElementById("speakingFeedback");
-    feedback.innerText = `❌ Try again...`; feedback.style.color = "red";
-    forceSpeak("Try again"); setTimeout(startListeningSafe, 1500);
-  }
-}
-
 function nextSpeakingQuestion(){
   document.getElementById("speakingFeedback").innerText = "";
   document.getElementById("speakingTranscript").innerText = "(ここに認識された文字が出ます)";
@@ -1151,6 +1218,26 @@ function nextSpeakingQuestion(){
   setTimeout(startListeningSafe, 500);
 }
 function toggleListening(){ isListening ? recognition.stop() : (speakingRetryCount=0, startListeningSafe()); }
+
+function checkSpeakingAnswer(userSpeech){
+  const cleanSpeech = cleanText(userSpeech);
+  const cleanTarget = cleanText(speakingTargetWord);
+  const rawSpeech = userSpeech.toLowerCase().trim();
+  const rawTarget = speakingTargetWord.toLowerCase().trim();
+  const isHomophone = homophones[rawTarget] && homophones[rawTarget].includes(rawSpeech);
+
+  if(recognition) recognition.stop();
+  const feedback = document.getElementById("speakingFeedback");
+  if(cleanSpeech === cleanTarget || isHomophone) {
+      feedback.innerText = "⭕ Good!! " + speakingTargetWord; feedback.style.color = "green";
+      playSequence([{text: "Good!", lang: "en-US"},{text: speakingTargetWord, lang: "en-US"}], () => {
+        speakingIndex++; nextSpeakingQuestion();
+      });
+  } else {
+      feedback.innerText = `❌ Try again...`; feedback.style.color = "red";
+      forceSpeak("Try again"); setTimeout(startListeningSafe, 1500);
+  }
+}
 function playSpeakingTarget(){ forceSpeak(speakingTargetWord); }
 function skipSpeaking(){ forceSpeak(speakingTargetWord); setTimeout(()=>{ speakingIndex++; nextSpeakingQuestion(); }, 1000); }
 
@@ -1209,12 +1296,6 @@ function show(id){
   document.querySelectorAll(".screen").forEach(e=>e.style.display="none");
   document.getElementById(id).style.display="block"; window.scrollTo(0,0);
 }
-
-// 初期化
-const studyChartScript = document.createElement('script');
-studyChartScript.src = 'https://cdn.jsdelivr.net/npm/chart.js';
-studyChartScript.onload = () => { /* drawStudyChart() inside loadAllLists */ };
-document.head.appendChild(studyChartScript);
 </script>
 </body>
 </html>

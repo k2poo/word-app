@@ -690,8 +690,7 @@ async function loadCSV(path){
     if(!o.word && headers[0]) o.word = o[headers[0]];
       if(!o.meaning && headers[1]) o.meaning = o[headers[1]];
       
-      // ★修正：ヘッダーに関係なく、データ行に3つ目の項目があれば画像として読み込む
-      // v はデータをカンマで区切った配列です。v[2] はその3番目です。
+      // ★修正：3列目があれば画像として読み込む
       if(v.length > 2 && v[2].trim() !== "") {
         o.image = v[2].trim();
       }
@@ -904,7 +903,7 @@ function setImage(containerId, imageUrl) {
   if(imageUrl && imageUrl.trim() !== "") {
     container.style.display = "flex";
     // ↓ ここに "image/" があるか確認してください
-    container.innerHTML = `<img src="image/${imageUrl}" alt="Hint Image">`;
+    container.innerHTML = `<img src="images/${imageUrl}" alt="Hint Image">`;
   } else {
     container.style.display = "none";
     container.innerHTML = "";

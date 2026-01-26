@@ -687,11 +687,14 @@ async function loadCSV(path){
       headers.forEach((h,i)=> {
         o[h] = v[i] ? v[i].trim() : "";
       });
-     if(!o.word && headers[0]) o.word = o[headers[0]];
+    if(!o.word && headers[0]) o.word = o[headers[0]];
       if(!o.meaning && headers[1]) o.meaning = o[headers[1]];
       
-      // ★追加：3列目を強制的に「image」として読み込む
-      if(!o.image && headers[2]) o.image = o[headers[2]]; 
+      // ★修正：ヘッダーに関係なく、データ行に3つ目の項目があれば画像として読み込む
+      // v はデータをカンマで区切った配列です。v[2] はその3番目です。
+      if(v.length > 2 && v[2].trim() !== "") {
+        o.image = v[2].trim();
+      }
 
       return o;
     });

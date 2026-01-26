@@ -687,8 +687,12 @@ async function loadCSV(path){
       headers.forEach((h,i)=> {
         o[h] = v[i] ? v[i].trim() : "";
       });
-      if(!o.word && headers[0]) o.word = o[headers[0]];
+     if(!o.word && headers[0]) o.word = o[headers[0]];
       if(!o.meaning && headers[1]) o.meaning = o[headers[1]];
+      
+      // ★追加：3列目を強制的に「image」として読み込む
+      if(!o.image && headers[2]) o.image = o[headers[2]]; 
+
       return o;
     });
   } catch(e) { return null; }
@@ -896,14 +900,13 @@ function setImage(containerId, imageUrl) {
   const container = document.getElementById(containerId);
   if(imageUrl && imageUrl.trim() !== "") {
     container.style.display = "flex";
-    // ↓ "image/" をファイル名の前に追加しました
+    // ↓ ここに "image/" があるか確認してください
     container.innerHTML = `<img src="image/${imageUrl}" alt="Hint Image">`;
   } else {
     container.style.display = "none";
     container.innerHTML = "";
   }
 }
-
 // ⚡ 速攻モード
 let studyOrder=[], studyIndex=0, dontKnow=[], round=1;
 function startStudyMode(t){
@@ -1300,6 +1303,7 @@ function show(id){
 </script>
 </body>
 </html>
+
 
 
 

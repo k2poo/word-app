@@ -896,7 +896,8 @@ function setImage(containerId, imageUrl) {
   const container = document.getElementById(containerId);
   if(imageUrl && imageUrl.trim() !== "") {
     container.style.display = "flex";
-    container.innerHTML = `<img src="${imageUrl}" alt="Hint Image">`;
+    // ↓ "image/" をファイル名の前に追加しました
+    container.innerHTML = `<img src="image/${imageUrl}" alt="Hint Image">`;
   } else {
     container.style.display = "none";
     container.innerHTML = "";
@@ -1299,5 +1300,6 @@ function show(id){
 </script>
 </body>
 </html>
+
 
 

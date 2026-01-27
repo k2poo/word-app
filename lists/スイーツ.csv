@@ -1,13 +1,12 @@
 ﻿word,meaning,image
-ケーキ,cake,cake.png
-プリン,pudding,pudding.png
-アイスクリーム,ice cream,ice cream.png
-チョコレート,chocolate,chocolate.png
-クッキー,cookie,cookie.png
-ドーナツ,donut,donut.png
-シュークリーム,cream puff,cream puff.png
-パフェ,parfait,parfait.png
-ゼリー,jelly,jelly.png
-飴,candy,candy.png
-お団子,dango,dango.png
-お餅,rice cake,rice cake.png
+クエスチョン　What’s this?,It's a cake.,cake.png
+クエスチョン　What’s this?,It's pudding.,pudding.png
+クエスチョン　What’s this?,It's ice cream.,ice cream.png
+クエスチョン　What’s this?,It's chocolate.,chocolate.png
+クエスチョン　What’s this?,It's a cookie.,cookie.png
+クエスチョン　What’s this?,It's a donut.,donut.png
+クエスチョン　What’s this?,It's a cream puff.,cream puff.png
+クエスチョン　What’s this?,It's jelly.,jelly.png
+クエスチョン　What’s this?,It's candy.,candy.png
+クエスチョン　What’s this?,It's a rice cake.,rice cake.png
+クエスチョン　What’s this?,It's a parfait.,parfait.png

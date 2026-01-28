@@ -1215,12 +1215,27 @@ function nextSpeakingQuestion(){
   document.getElementById("speakingFeedback").innerText = "";
   document.getElementById("speakingTranscript").innerText = "(ここに認識された文字が出ます)";
   document.getElementById("speakingRoundDisplay").innerText = (speakingIndex + 1) + " / " + speakingOrder.length;
+  
   if(speakingIndex >= speakingOrder.length){
       saveClearCount(studyTitle); alert("Good job!"); return endStudy(true);
   }
+  
   const item = currentList[speakingOrder[speakingIndex]];
   let target = item.word, hint = item.meaning;
-  if((hasJapanese(target) && !hasJapanese(hint)) || (isNum(target) && !isNum(hint))) { target = hint; hint = item.word; }
+
+  // --- 判定ロジックの修正箇所 ---
+  // 1. 本来の「日本語が含まれていたら入れ替える」判定
+  // 2. 追加：「word列（target）が "What's" で始まっていたら入れ替える」判定
+  if(
+    (hasJapanese(target) && !hasJapanese(hint)) || 
+    (isNum(target) && !isNum(hint)) ||
+    (String(target).trim().startsWith("What's")) // ★ここを追加
+  ) { 
+    target = hint; // 答え（candyなど）を正解にする
+    hint = item.word; // 質問（What's this?など）をヒントとして表示する
+  }
+  // ----------------------------
+
   speakingTargetWord = target;
   document.getElementById("speakingMeaning").innerText = hint;
   setImage("speakingImageArea", item.image);
@@ -1308,9 +1323,3 @@ function show(id){
 </script>
 </body>
 </html>
-
-
-
-
-
-

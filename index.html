@@ -1222,26 +1222,27 @@ function nextSpeakingQuestion(){
   
   const item = currentList[speakingOrder[speakingIndex]];
   
-  // デフォルトの設定：1列目(word)を表示し、2列目(meaning)を答えにする
+  // デフォルトの設定：1列目(word)を表示、2列目(meaning)を答えにする
   let target = item.meaning; // 答え (It's candy.)
   let hint = item.word;      // 表示 (What's this?)
 
-  // もし「1列目が日本語」で「2列目が英語」の場合のみ、自動で入れ替える
-  // これにより、通常の英単語リスト（1:りんご 2:apple）でも正しく動作します
+  // 日本語が含まれる場合の自動判定ロジック
   if(hasJapanese(item.word) && !hasJapanese(item.meaning)) {
     target = item.meaning;
     hint = item.word;
   } 
-  // もし「1列目が英語」で「2列目が日本語」の場合は、1列目を答えにする
   else if(!hasJapanese(item.word) && hasJapanese(item.meaning)) {
     target = item.word;
     hint = item.meaning;
   }
-  // 今回のように「両方英語」の場合は、上のデフォルト設定（1列目表示、2列目答え）が適用されます
 
   speakingTargetWord = target;
   document.getElementById("speakingMeaning").innerText = hint;
   setImage("speakingImageArea", item.image);
+
+  // ★ここを追加：画面に表示されたテキスト(hint)を読み上げる
+  forceSpeak(hint); 
+
   setTimeout(startListeningSafe, 500);
 }
 function toggleListening(){ isListening ? recognition.stop() : (speakingRetryCount=0, startListeningSafe()); }

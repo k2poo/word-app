@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>英単語暗記アプリ (Speech Update + OK fix)</title>
+<title>英単語暗記アプリ (Speech Update + OK fix + No Parentheses)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
 <style>
@@ -420,6 +420,7 @@ button:disabled{ opacity: 0.5; cursor: default; transform: none; }
      💡 認識精度を上げるため<br>「単語 + OK?」と発音してください<br>
      <span style="font-size:0.9em; color:#555;">(例: Apple OK? / Dog OK?)</span>
   </div>
+
   <div class="score-board">ROUND: <span id="speakingRoundDisplay">1</span></div>
 
   <div id="speakingImageArea" class="img-box" style="display:none;"></div>
@@ -548,7 +549,7 @@ let speakingIndex = 0;
 let recognition = null;
 let isListening = false;
 let speakingTargetWord = "";
-// ★追加: 無音検知とリトライ用変数
+
 let silenceTimer = null;
 let speakingRetryCount = 0;
 
@@ -571,7 +572,7 @@ const homophones = {
     "red": ["read"], // read(過去形)
     "blue": ["blew"],
 
-    // 数字（単語 -> 他の綴り、または数字記号）
+    // 数字
     "one": ["won", "1"],
     "two": ["to", "too", "2"],
     "three": ["3"],
@@ -698,7 +699,6 @@ async function loadCSV(path){
     if(!o.word && headers[0]) o.word = o[headers[0]];
       if(!o.meaning && headers[1]) o.meaning = o[headers[1]];
       
-      // ★修正：3列目があれば画像として読み込む
       if(v.length > 2 && v[2].trim() !== "") {
         o.image = v[2].trim();
       }
@@ -764,7 +764,6 @@ async function drawStudyChart(){
   });
 }
 
-// 星のHTMLを生成する関数
 function getStarHtml(count) {
     if(count >= 15) return `<span class="star-gold">★</span>`;
     if(count >= 10) return `<span class="star-silver">★</span>`;
@@ -910,7 +909,6 @@ function setImage(containerId, imageUrl) {
   const container = document.getElementById(containerId);
   if(imageUrl && imageUrl.trim() !== "") {
     container.style.display = "flex";
-    // ↓ ここに "image/" があるか確認してください
     container.innerHTML = `<img src="images/${imageUrl}" alt="Hint Image">`;
   } else {
     container.style.display = "none";
@@ -1227,11 +1225,9 @@ function nextSpeakingQuestion(){
   
   const item = currentList[speakingOrder[speakingIndex]];
   
-  // デフォルトの設定：1列目(word)を表示、2列目(meaning)を答えにする
-  let target = item.meaning; // 答え (It's candy.)
-  let hint = item.word;      // 表示 (What's this?)
+  let target = item.meaning; 
+  let hint = item.word;      
 
-  // 日本語が含まれる場合の自動判定ロジック
   if(hasJapanese(item.word) && !hasJapanese(item.meaning)) {
     target = item.meaning;
     hint = item.word;
@@ -1245,27 +1241,20 @@ function nextSpeakingQuestion(){
   document.getElementById("speakingMeaning").innerText = hint;
   setImage("speakingImageArea", item.image);
 
-  // ★ここを追加：画面に表示されたテキスト(hint)を読み上げる
   forceSpeak(hint); 
 
   setTimeout(startListeningSafe, 500);
 }
 function toggleListening(){ isListening ? recognition.stop() : (speakingRetryCount=0, startListeningSafe()); }
 
-// ▼▼▼ 改良された正解判定関数 ▼▼▼
 function checkSpeakingAnswer(userSpeech){
-  // 1. 小文字化して前後の空白削除
   let rawSpeech = userSpeech.toLowerCase().trim();
-
-  // 2. 末尾の "ok" や "okay" (および記号) を削除
-  // 正規表現: 空白の後に ok か okay があり、最後に記号(.,?!)があってもよいものを空文字に置換
   rawSpeech = rawSpeech.replace(/(\s+ok|\s+okay)[\.\?\!]*$/i, "");
-  rawSpeech = rawSpeech.trim(); // 削除後に残った末尾空白も除去
+  rawSpeech = rawSpeech.trim(); 
 
   const cleanSpeech = cleanText(rawSpeech);
   const cleanTarget = cleanText(speakingTargetWord);
   
-  // 同音異義語チェック(ターゲットを小文字化してキーに使用)
   const rawTarget = speakingTargetWord.toLowerCase().trim();
   const isHomophoneCheck = homophones[rawTarget] && homophones[rawTarget].includes(rawSpeech);
 
@@ -1282,7 +1271,6 @@ function checkSpeakingAnswer(userSpeech){
       forceSpeak("Try again"); setTimeout(startListeningSafe, 1500);
   }
 }
-// ▲▲▲ 改良ここまで ▲▲▲
 
 function playSpeakingTarget(){ forceSpeak(speakingTargetWord); }
 function skipSpeaking(){ forceSpeak(speakingTargetWord); setTimeout(()=>{ speakingIndex++; nextSpeakingQuestion(); }, 1000); }
@@ -1290,26 +1278,40 @@ function skipSpeaking(){ forceSpeak(speakingTargetWord); setTimeout(()=>{ speaki
 // 共通
 function speakQuestion(){ forceSpeak(currentList[studyOrder[studyIndex]].word); }
 function speakAnswer(){ forceSpeak(currentList[studyOrder[studyIndex]].meaning); }
+
+// ▼▼▼ 改良点: カッコの中身を読まないように修正 ▼▼▼
 function forceSpeak(text) {
   if(!text || !('speechSynthesis' in window)) return;
+  // 読み上げ用にカッコとその中身を削除 (全角・半角対応)
+  const speakText = text.replace(/[（\(].*?[）\)]/g, "").trim();
+
   window.speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = hasJapanese(text) ? 'ja-JP' : 'en-US';
+  const u = new SpeechSynthesisUtterance(speakText);
+  // speakText自体で言語判定を行う
+  u.lang = hasJapanese(speakText) ? 'ja-JP' : 'en-US';
   window.speechSynthesis.speak(u);
 }
+
 function playSequence(list, onComplete){
   if(!list || !list.length){ if(onComplete) onComplete(); return; }
   let idx = 0;
   function playNext(){
     if(idx >= list.length){ if(onComplete) onComplete(); return; }
-    const u = new SpeechSynthesisUtterance(list[idx].text);
-    u.lang = list[idx].lang || (hasJapanese(list[idx].text) ? 'ja-JP' : 'en-US');
+    
+    // リスト内のテキストもカッコ削除処理
+    let rawText = list[idx].text;
+    let speakText = rawText.replace(/[（\(].*?[）\)]/g, "").trim();
+
+    const u = new SpeechSynthesisUtterance(speakText);
+    u.lang = list[idx].lang || (hasJapanese(speakText) ? 'ja-JP' : 'en-US');
     u.onend = () => { idx++; setTimeout(playNext, 300); };
     u.onerror = () => { idx++; playNext(); };
     window.speechSynthesis.speak(u);
   }
   window.speechSynthesis.cancel(); playNext();
 }
+// ▲▲▲ 改良点ここまで ▲▲▲
+
 function playBeep() {
   if(!audioCtx) return;
   const osc = audioCtx.createOscillator();

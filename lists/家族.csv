@@ -1,13 +1,14 @@
 ﻿word,meaning,image
 家族,family,family.png
-父,father,family.png
-母,mother,family.png
-兄,older brother,family.png
-弟,younger brother,family.png
-姉,older sister,family.png
-妹,younger sister,family.png
-祖父,grandfather,family.png
-祖母,grandmother,family.png
+ちち（父）,father,family.png
+はは（母）,mother,family.png
+あに（兄）,older brother,family.png
+おとうと（弟）,younger brother,family.png
+あね（姉）,older sister,family.png
+いもうと（妹）,younger sister,family.png
+そふ（祖父）,grandfather,family.png
+そぼ（祖母）,grandmother,family.png
 おじ,uncle,family.png
 おば,aunt,family.png
 いとこ,cousin,family.png
+

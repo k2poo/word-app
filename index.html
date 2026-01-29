@@ -950,3 +950,398 @@ function markDontKnow(){
   dontKnow.push(studyOrder[studyIndex]); 
   showAnswer();
   forceSpeak(currentList[studyOrder[studyIndex]].meaning);
+  setTimeout(()=>{studyIndex++;nextQuestion();},1200); 
+}
+function showAnswer(){ 
+  document.getElementById("answerMeaning").innerText=currentList[studyOrder[studyIndex]].meaning; 
+}
+
+// 🎮 4択ゲーム
+let gameIndex=0, gameScore=0, gameOrder=[];
+function startGameMode(t){
+  studyTitle = t;
+  gameIndex=0; gameScore=0;
+  gameOrder=[...currentList.keys()].sort(()=>Math.random()-0.5);
+  document.getElementById("gameScore").innerText = gameScore;
+  show("gameScreen");
+  nextGameQuestion();
+}
+function nextGameQuestion(){
+  document.getElementById("gameFeedback").innerText = "";
+  if(gameIndex >= gameOrder.length){
+    let msg = `ゲーム終了！\nあなたのスコア: ${gameScore} / ${gameOrder.length}`;
+    if(gameScore === gameOrder.length){
+      saveClearCount(studyTitle);
+      msg += "\n\n🎉 Perfect!!";
+    }
+    alert(msg);
+    return endStudy(true);
+  }
+  const correctIdx = gameOrder[gameIndex];
+  currentCorrectItem = currentList[correctIdx];
+  document.getElementById("gameQuestionWord").style.display = "none";
+  document.getElementById("gameQuestionWord").innerText = currentCorrectItem.word;
+  document.getElementById("listeningMsg").style.display = "block";
+  setImage("gameImageArea", currentCorrectItem.image);
+  setTimeout(() => forceSpeak(currentCorrectItem.word), 400);
+  stopUrgentTimer();
+  if(appMode === 'urgent') {
+    const startDelay = 2000;
+    urgentTimeouts.push(setTimeout(playBeep, startDelay));            
+    urgentTimeouts.push(setTimeout(playBeep, startDelay + 600));      
+    urgentTimeouts.push(setTimeout(gameHint2, startDelay + 1200));    
+    const phase2Start = startDelay + 1200 + 2000; 
+    urgentTimeouts.push(setTimeout(playBeep, phase2Start));            
+    urgentTimeouts.push(setTimeout(playBeep, phase2Start + 600));      
+    urgentTimeouts.push(setTimeout(handleTimeUp, phase2Start + 1200)); 
+  }
+  let choices = [currentCorrectItem];
+  let loop=0;
+  while(choices.length < 4 && loop < 100){
+    loop++;
+    const r = Math.floor(Math.random() * currentList.length);
+    const item = currentList[r];
+    if(!choices.includes(item) && item.meaning !== currentCorrectItem.meaning){
+      choices.push(item);
+    }
+  }
+  choices.sort(()=>Math.random()-0.5);
+  const area = document.getElementById("choicesArea");
+  area.innerHTML = "";
+  choices.forEach(c => {
+    const btn = document.createElement("button");
+    btn.className = "btn-choice";
+    btn.innerText = c.meaning;
+    btn.onclick = () => checkGameAnswer(c, currentCorrectItem);
+    area.appendChild(btn);
+  });
+}
+function gameHint1(){
+  document.getElementById("listeningMsg").style.display = "none";
+  document.getElementById("gameQuestionWord").style.display = "block";
+  forceSpeak(currentCorrectItem.word);
+}
+function gameHint2(){ forceSpeak(currentCorrectItem.word); }
+function gameHint3(){ forceSpeak(currentCorrectItem.meaning); }
+
+function checkGameAnswer(selected, correct){
+  stopUrgentTimer();
+  const area = document.getElementById("choicesArea");
+  Array.from(area.children).forEach(b => b.disabled = true);
+  const feedback = document.getElementById("gameFeedback");
+  const isLastQuestion = (gameIndex >= gameOrder.length - 1);
+  let audioSequence = [];
+  if(selected.word === correct.word){
+    gameScore++;
+    document.getElementById("gameScore").innerText = gameScore;
+    feedback.innerText = "⭕ Excellent!";
+    feedback.style.color = "green";
+    audioSequence.push({text: "Good job!", lang: "en-US"});
+    audioSequence.push({text: correct.meaning, lang: null}); 
+    if(!isLastQuestion) audioSequence.push({text: "Next question.", lang: "en-US"});
+    playSequence(audioSequence, () => { gameIndex++; nextGameQuestion(); });
+  } else {
+    feedback.innerText = `❌ 正解: ${correct.meaning}`;
+    feedback.style.color = "red";
+    audioSequence.push({text: "Try again.", lang: "en-US"});
+    audioSequence.push({text: correct.meaning, lang: null}); 
+    playSequence(audioSequence, () => { gameIndex++; nextGameQuestion(); });
+  }
+}
+
+// ✏️ スペリング
+function startSpellingMode(t){
+  studyTitle = t; spellingRound = 1; spellingIndex = 0; spellingMissList = [];
+  spellingOrder = [...currentList.keys()].sort(()=>Math.random()-0.5);
+  let titleText = "✏️ スペリング";
+  if(appMode === 'spelling3') titleText = "🖋️ スペリング (3文字)";
+  if(appMode === 'typing') titleText = "⌨️ タイピング練習";
+  document.getElementById("spellingModeTitle").innerText = titleText;
+  document.getElementById("btnSpellingAnswer").style.display = (appMode === 'typing') ? 'none' : 'inline-block';
+  show("spellingScreen");
+  nextSpellingQuestion();
+}
+function nextSpellingQuestion(){
+  document.getElementById("spellingFeedback").innerText = "";
+  isTypingLocked = false;
+  const input = document.getElementById("inputAnswer");
+  input.disabled = false; input.value = "";
+  document.getElementById("spellingRoundDisplay").innerText = spellingRound;
+  if(spellingIndex >= spellingOrder.length){
+    if(spellingRound === 1 && spellingMissList.length > 0){
+      alert("間違えた単語を再テストします。");
+      spellingRound = 2;
+      spellingOrder = spellingMissList.map(item => currentList.indexOf(item));
+      spellingMissList = []; spellingIndex = 0;
+      nextSpellingQuestion();
+      return;
+    } else {
+      saveClearCount(studyTitle);
+      alert("トレーニング終了です！");
+      return endStudy(true);
+    }
+  }
+  const currentIdx = spellingOrder[spellingIndex];
+  currentCorrectItem = currentList[currentIdx];
+  const w = currentCorrectItem.word;
+  const m = currentCorrectItem.meaning;
+  let targetVal = w, hintVal = m;
+  if((hasJapanese(w) && !hasJapanese(m)) || (isNum(w) && !isNum(m))) { targetVal = m; hintVal = w; }
+  spellingTargetWord = targetVal;
+  spellingHintText = hintVal;
+  if(appMode === 'typing'){
+      currentMaskedData = { displayed: "", answer: spellingTargetWord }; 
+      document.getElementById("spellingMeaning").innerText = spellingHintText;
+      setImage("spellingImageArea", currentCorrectItem.image);
+      input.maxLength = spellingTargetWord.length;
+      input.placeholder = ""; 
+      renderTypingFeedback(""); 
+  } else {
+      const modeLen = (appMode === 'spelling3') ? 3 : 2;
+      currentMaskedData = createMaskedWord(spellingTargetWord, modeLen);
+      document.getElementById("spellingMeaning").innerText = spellingHintText;
+      setImage("spellingImageArea", currentCorrectItem.image);
+      document.getElementById("spellingQuestionText").innerText = currentMaskedData.displayed;
+      input.maxLength = currentMaskedData.answer.length;
+      input.placeholder = "_".repeat(currentMaskedData.answer.length);
+  }
+  input.focus();
+  setTimeout(() => playSpellingAudio(), 400);
+}
+function playSpellingAudio() { forceSpeak(spellingTargetWord); }
+function handleTypingInput(){
+    if(appMode !== 'typing' || isTypingLocked) return;
+    const input = document.getElementById("inputAnswer");
+    const val = toHalfWidth(input.value); 
+    renderTypingFeedback(val);
+    if(val === spellingTargetWord){
+        isTypingLocked = true; input.disabled = true;
+        const feedback = document.getElementById("spellingFeedback");
+        feedback.innerText = "⭕ Perfect!";
+        feedback.style.color = "green";
+        playSequence([{text: "Perfect!", lang: "en-US"},{text: spellingTargetWord, lang: "en-US"}], () => {
+            spellingIndex++; nextSpellingQuestion();
+        });
+    }
+}
+function renderTypingFeedback(currentInput){
+    const target = spellingTargetWord;
+    let html = "";
+    for(let i=0; i<target.length; i++){
+        if(i < currentInput.length){
+            if(currentInput[i] === target[i]) html += `<span class="char-correct">${currentInput[i]}</span>`;
+            else html += `<span class="char-wrong">${currentInput[i]}</span>`;
+        } else html += `<span class="char-placeholder">_</span>`;
+    }
+    document.getElementById("spellingQuestionText").innerHTML = html;
+}
+function createMaskedWord(word, length){
+  if(!word || word.length <= length) return { displayed: "_".repeat(word ? word.length : length), answer: word };
+  const isCon = c => /[bcdfghjklmnpqrstvwxyz]/i.test(c);
+  let targetIndex = 0;
+  if(length === 3) {
+    let f3 = -1;
+    for(let i=0; i<word.length-2; i++) if(isCon(word[i])&&isCon(word[i+1])&&isCon(word[i+2])){ f3=i; break; }
+    targetIndex = (f3!==-1)?f3:0;
+  } else {
+    let cand = [];
+    for(let i=0; i<word.length-1; i++) if(isCon(word[i])&&isCon(word[i+1])) cand.push(i);
+    targetIndex = cand.length?cand[Math.floor(Math.random()*cand.length)]:0;
+  }
+  return { displayed: word.substring(0,targetIndex)+"_".repeat(length)+word.substring(targetIndex+length), answer: word.substr(targetIndex,length) };
+}
+function checkSpellingAnswer(){
+  if(appMode === 'typing') return; 
+  const input = document.getElementById("inputAnswer");
+  if(input.disabled) return;
+  input.disabled = true; 
+  const normalizedInput = toHalfWidth(input.value).trim();
+  const feedback = document.getElementById("spellingFeedback");
+  if (normalizedInput === currentMaskedData.answer) {
+      feedback.innerText = "⭕ Good job!"; feedback.style.color = "green";
+      playSequence([{text: "Good job!", lang: "en-US"}, {text: spellingTargetWord, lang: "en-US"}], () => {
+          spellingIndex++; nextSpellingQuestion();
+      });
+  } else {
+      feedback.innerText = `❌ 正解: ${currentMaskedData.answer}`; feedback.style.color = "red";
+      spellingMissList.push(currentCorrectItem); 
+      playSequence([{text: "Try again.", lang: "en-US"}, {text: spellingTargetWord, lang: "en-US"}], () => {
+          spellingIndex++; nextSpellingQuestion();
+      });
+  }
+}
+
+// 🗣️ スピーキング
+function startListeningSafe() {
+  if (!recognition || isListening) return;
+  try { recognition.start(); } catch (e) {}
+}
+function handleSilenceTimeout(){
+    if(appMode !== 'speaking') return;
+    if(recognition) try { recognition.stop(); } catch(e){}
+    if(speakingRetryCount < 1){
+        speakingRetryCount++;
+        playSequence([{text: "I can't hear you. Try again.", lang: "en-US"}], () => { startListeningSafe(); });
+    } else {
+        document.getElementById("micStatusText").innerText = "タップして入力";
+        isListening = false;
+        document.getElementById("btnMic").classList.remove("mic-active");
+    }
+}
+function startSpeakingMode(t){
+  studyTitle = t; speakingIndex = 0; speakingRetryCount = 0;
+  speakingOrder = [...currentList.keys()].sort(()=>Math.random()-0.5);
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) { alert("音声認識非対応ブラウザです。"); return endStudy(); }
+  recognition = new SpeechRecognition();
+  recognition.lang = 'en-US';
+  recognition.onstart = function() {
+    isListening = true; document.getElementById("btnMic").classList.add("mic-active");
+    document.getElementById("micStatusText").innerText = "聞いています...";
+    clearTimeout(silenceTimer); silenceTimer = setTimeout(handleSilenceTimeout, 5000);
+  };
+  recognition.onend = function() {
+    clearTimeout(silenceTimer); isListening = false;
+    document.getElementById("btnMic").classList.remove("mic-active");
+  };
+  recognition.onerror = function(e) {
+    clearTimeout(silenceTimer); if(e.error === 'no-speech') handleSilenceTimeout();
+  };
+  recognition.onresult = function(e) {
+    clearTimeout(silenceTimer); speakingRetryCount = 0;
+    const transcript = e.results[0][0].transcript;
+    document.getElementById("speakingTranscript").innerText = `"${transcript}"`;
+    checkSpeakingAnswer(transcript);
+  };
+  show("speakingScreen");
+  nextSpeakingQuestion();
+}
+function nextSpeakingQuestion(){
+  document.getElementById("speakingFeedback").innerText = "";
+  document.getElementById("speakingTranscript").innerText = "(ここに認識された文字が出ます)";
+  document.getElementById("speakingRoundDisplay").innerText = (speakingIndex + 1) + " / " + speakingOrder.length;
+  
+  if(speakingIndex >= speakingOrder.length){
+      saveClearCount(studyTitle); alert("Good job!"); return endStudy(true);
+  }
+  
+  const item = currentList[speakingOrder[speakingIndex]];
+  
+  // デフォルトの設定：1列目(word)を表示、2列目(meaning)を答えにする
+  let target = item.meaning; // 答え (It's candy.)
+  let hint = item.word;      // 表示 (What's this?)
+
+  // 日本語が含まれる場合の自動判定ロジック
+  if(hasJapanese(item.word) && !hasJapanese(item.meaning)) {
+    target = item.meaning;
+    hint = item.word;
+  } 
+  else if(!hasJapanese(item.word) && hasJapanese(item.meaning)) {
+    target = item.word;
+    hint = item.meaning;
+  }
+
+  speakingTargetWord = target;
+  document.getElementById("speakingMeaning").innerText = hint;
+  setImage("speakingImageArea", item.image);
+
+  // ★ここを追加：画面に表示されたテキスト(hint)を読み上げる
+  forceSpeak(hint); 
+
+  setTimeout(startListeningSafe, 500);
+}
+function toggleListening(){ isListening ? recognition.stop() : (speakingRetryCount=0, startListeningSafe()); }
+
+// ▼▼▼ 改良された正解判定関数 ▼▼▼
+function checkSpeakingAnswer(userSpeech){
+  // 1. 小文字化して前後の空白削除
+  let rawSpeech = userSpeech.toLowerCase().trim();
+
+  // 2. 末尾の "ok" や "okay" (および記号) を削除
+  // 正規表現: 空白の後に ok か okay があり、最後に記号(.,?!)があってもよいものを空文字に置換
+  rawSpeech = rawSpeech.replace(/(\s+ok|\s+okay)[\.\?\!]*$/i, "");
+  rawSpeech = rawSpeech.trim(); // 削除後に残った末尾空白も除去
+
+  const cleanSpeech = cleanText(rawSpeech);
+  const cleanTarget = cleanText(speakingTargetWord);
+  
+  // 同音異義語チェック(ターゲットを小文字化してキーに使用)
+  const rawTarget = speakingTargetWord.toLowerCase().trim();
+  const isHomophoneCheck = homophones[rawTarget] && homophones[rawTarget].includes(rawSpeech);
+
+  if(recognition) recognition.stop();
+  const feedback = document.getElementById("speakingFeedback");
+
+  if(cleanSpeech === cleanTarget || isHomophoneCheck) {
+      feedback.innerText = "⭕ Good!! " + speakingTargetWord; feedback.style.color = "green";
+      playSequence([{text: "Good!", lang: "en-US"},{text: speakingTargetWord, lang: "en-US"}], () => {
+        speakingIndex++; nextSpeakingQuestion();
+      });
+  } else {
+      feedback.innerText = `❌ Try again...`; feedback.style.color = "red";
+      forceSpeak("Try again"); setTimeout(startListeningSafe, 1500);
+  }
+}
+// ▲▲▲ 改良ここまで ▲▲▲
+
+function playSpeakingTarget(){ forceSpeak(speakingTargetWord); }
+function skipSpeaking(){ forceSpeak(speakingTargetWord); setTimeout(()=>{ speakingIndex++; nextSpeakingQuestion(); }, 1000); }
+
+// 共通
+function speakQuestion(){ forceSpeak(currentList[studyOrder[studyIndex]].word); }
+function speakAnswer(){ forceSpeak(currentList[studyOrder[studyIndex]].meaning); }
+function forceSpeak(text) {
+  if(!text || !('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = hasJapanese(text) ? 'ja-JP' : 'en-US';
+  window.speechSynthesis.speak(u);
+}
+function playSequence(list, onComplete){
+  if(!list || !list.length){ if(onComplete) onComplete(); return; }
+  let idx = 0;
+  function playNext(){
+    if(idx >= list.length){ if(onComplete) onComplete(); return; }
+    const u = new SpeechSynthesisUtterance(list[idx].text);
+    u.lang = list[idx].lang || (hasJapanese(list[idx].text) ? 'ja-JP' : 'en-US');
+    u.onend = () => { idx++; setTimeout(playNext, 300); };
+    u.onerror = () => { idx++; playNext(); };
+    window.speechSynthesis.speak(u);
+  }
+  window.speechSynthesis.cancel(); playNext();
+}
+function playBeep() {
+  if(!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.frequency.setValueAtTime(880, audioCtx.currentTime); 
+  gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+  osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+}
+function stopUrgentTimer(){ urgentTimeouts.forEach(t => clearTimeout(t)); urgentTimeouts = []; }
+function handleTimeUp(){
+  const area = document.getElementById("choicesArea");
+  Array.from(area.children).forEach(b => b.disabled = true);
+  document.getElementById("gameFeedback").innerText = `⏰ 時間切れ... 正解: ${currentCorrectItem.meaning}`;
+  playSequence([{text: "Time's up.", lang: "en-US"},{text: currentCorrectItem.meaning, lang: null}], () => {
+      gameIndex++; nextGameQuestion();
+  });
+}
+async function endStudy(completed = false){
+  stopUrgentTimer(); if(recognition) try{recognition.abort();}catch(e){}
+  clearTimeout(silenceTimer);
+  if(completed){
+    await saveStudyTime(Math.floor((Date.now() - studyStartTime)/1000));
+    loadedCounts = await loadClearCounts();
+    renderLists(); await updateStudyInfo(); await drawStudyChart();
+  }
+  show("listScreen");
+}
+function show(id){
+  document.querySelectorAll(".screen").forEach(e=>e.style.display="none");
+  document.getElementById(id).style.display="block"; window.scrollTo(0,0);
+}
+</script>
+</body>
+</html>

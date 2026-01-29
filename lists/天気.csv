@@ -1,13 +1,13 @@
 ﻿word,meaning,image
 晴れ,sunny,sunny.png
 曇り,cloudy,cloudy.png
-雨,rainy,rainy.png
-雪,snowy,snowy.png
+あめ（雨）,rainy,rainy.png
+ゆき（雪）,snowy,snowy.png
 風が強い,windy,windy.png
 暑い,hot,hot.png
 寒い,cold,cold.png
 暖かい,warm,warm.png
 涼しい,cool,cool.png
 蒸し暑い,humid,humid.png
-霧,foggy,foggy.png
-嵐,stormy,stormy.png
+きり（霧）,foggy,foggy.png
+あらし（嵐）,stormy,stormy.png

@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>英単語暗記アプリ (Well-Prefix Fix)</title>
+<title>英単語暗記アプリ (Um/Nn Fix)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
 <style>
@@ -1281,7 +1281,7 @@ function skipSpeaking(){ forceSpeak(speakingTargetWord); setTimeout(()=>{ speaki
 function speakQuestion(){ forceSpeak(currentList[studyOrder[studyIndex]].word); }
 function speakAnswer(){ forceSpeak(currentList[studyOrder[studyIndex]].meaning); }
 
-// ▼▼▼ 音声関連 ("Well, " プレフィックスによる頭切れ対策) ▼▼▼
+// ▼▼▼ 音声関連 ("Um," / "ん、" プレフィックスによる頭切れ対策) ▼▼▼
 
 // 利用可能なボイス一覧を保持
 let voices = [];
@@ -1309,15 +1309,22 @@ function forceSpeak(text) {
   const rawText = text.replace(/[（\(].*?[）\)]/g, "").trim();
   if(!rawText) return;
 
-  // ★修正: 頭切れ対策として "Well, " を強制的に付加
-  const speakText = "Well, " + rawText;
+  // ★修正: 言語に合わせてプレフィックスを変更 (頭切れ対策)
+  let prefix = "";
+  if (hasJapanese(rawText)) {
+    prefix = "ん、"; // 日本語の場合
+  } else {
+    prefix = "Um, "; // 英語の場合
+  }
+
+  const speakText = prefix + rawText;
   
   // 既存の読み上げをキャンセル
   window.speechSynthesis.cancel();
   if(speechTimeout) clearTimeout(speechTimeout);
   
   const u = new SpeechSynthesisUtterance(speakText);
-  // 言語判定: 元のテキストに日本語が含まれるかで判定
+  // 言語判定
   const lang = hasJapanese(rawText) ? 'ja-JP' : 'en-US';
   u.lang = lang;
   
@@ -1340,8 +1347,14 @@ function playSequence(list, onComplete){
     const rawText = item.text.replace(/[（\(].*?[）\)]/g, "").trim();
     if(!rawText) { playNext(); return; }
 
-    // ★修正: ここも "Well, " を付加
-    const speakText = "Well, " + rawText;
+    // ★修正: こちらも言語に合わせてプレフィックス変更
+    let prefix = "";
+    if (hasJapanese(rawText)) {
+      prefix = "ん、";
+    } else {
+      prefix = "Um, ";
+    }
+    const speakText = prefix + rawText;
     
     window.speechSynthesis.cancel();
     if(speechTimeout) clearTimeout(speechTimeout);

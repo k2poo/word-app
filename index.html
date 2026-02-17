@@ -1134,34 +1134,34 @@ function renderTypingFeedback(currentInput){
     document.getElementById("spellingQuestionText").innerHTML = html;
 }
 function createMaskedWord(word, length){
- // 文が短すぎる、または空の場合はそのまま返す（既存処理）
+  // エラー回避: 文が短すぎる、または空の場合はそのまま返す
   if(!word || word.length <= length) return { displayed: "_".repeat(word ? word.length : length), answer: word };
 
-  // ★追加修正: "Do you" で始まり、かつ3文字モード(length===3)の場合の特別ルール
-  // 3番目、4番目、5番目の単語の「最初の1文字」を穴埋めにする
-  // 例: "Do you have a pen?" -> words=["Do","you","have","a","pen?"] 
-  // -> 3番目(have)のh, 4番目(a)のa, 5番目(pen?)のp が正解となる
-  if (length === 3 && word.toLowerCase().startsWith("do you")) {
+  // ★修正箇所: 3文字モード かつ 文末が . ? ! のいずれかで終わっている場合
+  // trim()で末尾の空白を除去してから判定
+  if (length === 3 && /[.?!]$/.test(word.trim())) {
     const parts = word.split(" ");
-    // 単語数が5個以上ある場合のみ適用（5単語未満だと5番目が取得できないためエラー回避）
-    if (parts.length >= 5) {
-       let ans = "";
-       let newParts = [...parts];
-       
-       // プログラム上は0始まりなので、3,4,5番目は index 2,3,4 になります
-       [2, 3, 4].forEach(idx => {
-         const originalWord = parts[idx];
-         const firstChar = originalWord.charAt(0);
-         ans += firstChar; // 正解文字列に追加
-         // 表示用: 頭文字を_に置換して、残りの文字と結合
-         newParts[idx] = "_" + originalWord.slice(1); 
-       });
-
-       return { displayed: newParts.join(" "), answer: ans };
+    
+    // 後ろから順にループして対象の単語を探す
+    for (let i = parts.length - 1; i >= 0; i--) {
+      // その語が3文字以上（母音・子音・記号すべて含む長さ）かチェック
+      if (parts[i].length >= 3) {
+         const targetWord = parts[i];
+         
+         // 最後の3文字を正解(answer)として切り出す
+         const ans = targetWord.slice(-3);
+         
+         // 表示用: 最後の3文字を "___" に置き換える
+         // slice(0, -3) で「後ろ3文字を除いた部分」を取得し、それに "_" を3つ足す
+         parts[i] = targetWord.slice(0, -3) + "___"; 
+         
+         return { displayed: parts.join(" "), answer: ans };
+      }
     }
+    // もし3文字以上の単語が一つも見つからない場合は、下部の既存ロジックへ進みます
   }
 
-  // --- 以下、既存のロジック (変更なし) ---
+  // --- 以下、既存のロジック (通常の単語や、条件に当てはまらない場合用) ---
   const isCon = c => /[bcdfghjklmnpqrstvwxyz]/i.test(c);
   let targetIndex = 0;
   if(length === 3) {
@@ -1181,6 +1181,7 @@ function createMaskedWord(word, length){
     answer: word.substr(targetIndex,length) 
   };
 }
+
 function checkSpellingAnswer(){
   if(appMode === 'typing') return; 
   const input = document.getElementById("inputAnswer");

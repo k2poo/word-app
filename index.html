@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>英単語暗記アプリ (Speech Update + OK fix + No Parentheses)</title>
+<title>英単語暗記アプリ (Final Fix)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
 <style>
@@ -1321,36 +1321,72 @@ function skipSpeaking(){ forceSpeak(speakingTargetWord); setTimeout(()=>{ speaki
 function speakQuestion(){ forceSpeak(currentList[studyOrder[studyIndex]].word); }
 function speakAnswer(){ forceSpeak(currentList[studyOrder[studyIndex]].meaning); }
 
-// ▼▼▼ 改良点: カッコの中身を読まないように修正 ▼▼▼
+// ▼▼▼ 音声関連の改良版 (自然なイントネーションにする修正 + カッコ無視) ▼▼▼
+
+// 利用可能なボイス一覧を保持
+let voices = [];
+function loadVoices() { voices = speechSynthesis.getVoices(); }
+speechSynthesis.onvoiceschanged = loadVoices;
+loadVoices();
+
+function getBestVoice(lang) {
+  if (!voices.length) loadVoices();
+  const targetVoices = voices.filter(v => v.lang && v.lang.replace('_','-').toLowerCase().startsWith(lang.toLowerCase().split('-')[0]));
+  // 日本語の場合: Google > Microsoft > その他
+  if (lang.startsWith("ja")) {
+    const google = targetVoices.find(v => v.name.includes("Google"));
+    if (google) return google;
+    const microsoft = targetVoices.find(v => v.name.includes("Microsoft"));
+    if (microsoft) return microsoft;
+  }
+  return targetVoices.find(v => v.default) || targetVoices[0] || null;
+}
+
 function forceSpeak(text) {
   if(!text || !('speechSynthesis' in window)) return;
-  // 読み上げ用にカッコとその中身を削除 (全角・半角対応)
+  // 読み上げ用にカッコとその中身を削除
   const speakText = text.replace(/[（\(].*?[）\)]/g, "").trim();
-
+  
   window.speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(speakText);
-  // speakText自体で言語判定を行う
-  u.lang = hasJapanese(speakText) ? 'ja-JP' : 'en-US';
+  
+  const lang = hasJapanese(speakText) ? 'ja-JP' : 'en-US';
+  u.lang = lang;
+  
+  const v = getBestVoice(lang);
+  if(v) u.voice = v;
+
   window.speechSynthesis.speak(u);
 }
 
 function playSequence(list, onComplete){
   if(!list || !list.length){ if(onComplete) onComplete(); return; }
-  let idx = 0;
-  function playNext(){
-    if(idx >= list.length){ if(onComplete) onComplete(); return; }
-    
-    // リスト内のテキストもカッコ削除処理
-    let rawText = list[idx].text;
-    let speakText = rawText.replace(/[（\(].*?[）\)]/g, "").trim();
+  
+  // 配列をコピーして操作（再帰中の副作用を防ぐ）
+  const sequence = [...list];
 
+  function playNext(){
+    if(sequence.length === 0){ if(onComplete) onComplete(); return; }
+    
+    const item = sequence.shift();
+    const rawText = item.text;
+    const speakText = rawText.replace(/[（\(].*?[）\)]/g, "").trim();
+    
     const u = new SpeechSynthesisUtterance(speakText);
-    u.lang = list[idx].lang || (hasJapanese(speakText) ? 'ja-JP' : 'en-US');
-    u.onend = () => { idx++; setTimeout(playNext, 300); };
-    u.onerror = () => { idx++; playNext(); };
+    const lang = item.lang || (hasJapanese(speakText) ? 'ja-JP' : 'en-US');
+    u.lang = lang;
+
+    const v = getBestVoice(lang);
+    if(v) u.voice = v;
+
+    u.onend = () => { setTimeout(playNext, 300); };
+    u.onerror = () => { setTimeout(playNext, 300); };
+    
     window.speechSynthesis.speak(u);
   }
-  window.speechSynthesis.cancel(); playNext();
+  
+  window.speechSynthesis.cancel(); 
+  playNext();
 }
 // ▲▲▲ 改良点ここまで ▲▲▲
 

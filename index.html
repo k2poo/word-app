@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>英単語暗記アプリ (Head-Cut Fix)</title>
+<title>英単語暗記アプリ (Well-Prefix Fix)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
 <style>
@@ -1281,12 +1281,11 @@ function skipSpeaking(){ forceSpeak(speakingTargetWord); setTimeout(()=>{ speaki
 function speakQuestion(){ forceSpeak(currentList[studyOrder[studyIndex]].word); }
 function speakAnswer(){ forceSpeak(currentList[studyOrder[studyIndex]].meaning); }
 
-// ▼▼▼ 音声関連 (頭切れ防止のWaitを250msに延長) ▼▼▼
+// ▼▼▼ 音声関連 ("Well, " プレフィックスによる頭切れ対策) ▼▼▼
 
 // 利用可能なボイス一覧を保持
 let voices = [];
-let speechTimeout = null; // 連打防止・待機用
-const SPEAK_DELAY_MS = 250; // 0.25秒待機
+let speechTimeout = null; 
 
 function loadVoices() { voices = speechSynthesis.getVoices(); }
 speechSynthesis.onvoiceschanged = loadVoices;
@@ -1307,25 +1306,26 @@ function getBestVoice(lang) {
 function forceSpeak(text) {
   if(!text || !('speechSynthesis' in window)) return;
   // 読み上げ用にカッコとその中身を削除
-  const speakText = text.replace(/[（\(].*?[）\)]/g, "").trim();
+  const rawText = text.replace(/[（\(].*?[）\)]/g, "").trim();
+  if(!rawText) return;
+
+  // ★修正: 頭切れ対策として "Well, " を強制的に付加
+  const speakText = "Well, " + rawText;
   
   // 既存の読み上げをキャンセル
   window.speechSynthesis.cancel();
-  
-  // 待機中の再生があればキャンセル
   if(speechTimeout) clearTimeout(speechTimeout);
   
   const u = new SpeechSynthesisUtterance(speakText);
-  const lang = hasJapanese(speakText) ? 'ja-JP' : 'en-US';
+  // 言語判定: 元のテキストに日本語が含まれるかで判定
+  const lang = hasJapanese(rawText) ? 'ja-JP' : 'en-US';
   u.lang = lang;
   
   const v = getBestVoice(lang);
   if(v) u.voice = v;
 
-  // ★ここが修正点: 250ms待ってから再生することで頭切れを防ぐ
-  speechTimeout = setTimeout(() => {
-    window.speechSynthesis.speak(u);
-  }, SPEAK_DELAY_MS);
+  // 待機時間なしで即再生
+  window.speechSynthesis.speak(u);
 }
 
 function playSequence(list, onComplete){
@@ -1337,30 +1337,29 @@ function playSequence(list, onComplete){
     if(sequence.length === 0){ if(onComplete) onComplete(); return; }
     
     const item = sequence.shift();
-    const rawText = item.text;
-    const speakText = rawText.replace(/[（\(].*?[）\)]/g, "").trim();
+    const rawText = item.text.replace(/[（\(].*?[）\)]/g, "").trim();
+    if(!rawText) { playNext(); return; }
+
+    // ★修正: ここも "Well, " を付加
+    const speakText = "Well, " + rawText;
     
-    // 既存キャンセル
     window.speechSynthesis.cancel();
     if(speechTimeout) clearTimeout(speechTimeout);
 
     const u = new SpeechSynthesisUtterance(speakText);
-    const lang = item.lang || (hasJapanese(speakText) ? 'ja-JP' : 'en-US');
+    const lang = item.lang || (hasJapanese(rawText) ? 'ja-JP' : 'en-US');
     u.lang = lang;
 
     const v = getBestVoice(lang);
     if(v) u.voice = v;
 
-    u.onend = () => { setTimeout(playNext, 300); };
-    u.onerror = () => { setTimeout(playNext, 300); };
+    u.onend = () => { setTimeout(playNext, 100); };
+    u.onerror = () => { setTimeout(playNext, 100); };
     
-    // ★ここも修正: 250ms待ってから再生
-    speechTimeout = setTimeout(() => {
-      window.speechSynthesis.speak(u);
-    }, SPEAK_DELAY_MS);
+    // 待機時間なしで即再生
+    window.speechSynthesis.speak(u);
   }
   
-  // 初回呼び出し時も念のためキャンセル
   window.speechSynthesis.cancel(); 
   playNext();
 }

@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>英単語暗記アプリ (Final Fix)</title>
+<title>英単語暗記アプリ (Sound Fix)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
 <style>
@@ -1135,55 +1135,31 @@ function renderTypingFeedback(currentInput){
 }
 
 function createMaskedWord(word, length){
-  // エラー回避: 文が短すぎる、または空の場合はそのまま返す
   if(!word || word.length <= length) return { displayed: "_".repeat(word ? word.length : length), answer: word };
-
-  // ★修正箇所: 3文字モード かつ 文末が . ? ! のいずれかで終わっている場合
   if (length === 3 && /[.?!]$/.test(word.trim())) {
     const parts = word.split(" ");
-    
-    // 後ろから順にループして対象の単語を探す
     for (let i = parts.length - 1; i >= 0; i--) {
       let w = parts[i];
       let p = "";
-
-      // 単語の末尾が . ? ! なら、それを一時的に分離する
-      // 例: "pen?" -> w="pen", p="?"
-      if(/[.?!]$/.test(w)){
-        p = w.slice(-1);
-        w = w.slice(0, -1);
-      }
-
-      // 記号を除いた部分が3文字以上あるかチェック
+      if(/[.?!]$/.test(w)){ p = w.slice(-1); w = w.slice(0, -1); }
       if (w.length >= 3) {
-         // 正解: 記号を除いた部分の後ろ3文字
          const ans = w.slice(-3);
-         
-         // 表示用: 記号を除いた部分の後ろ3文字を "___" に置換し、最後に記号を戻す
-         // 例: "tall" -> "t" + "___" + "." -> "t___."
          parts[i] = w.slice(0, -3) + "___" + p; 
-         
          return { displayed: parts.join(" "), answer: ans };
       }
     }
-    // 条件に合う単語が見つからない場合は、以下の既存ロジックへ進みます
   }
-
-  // --- 以下、既存のロジック (変更なし) ---
   const isCon = c => /[bcdfghjklmnpqrstvwxyz]/i.test(c);
   let targetIndex = 0;
   if(length === 3) {
     let f3 = -1;
-    // 3連続子音を探す
     for(let i=0; i<word.length-2; i++) if(isCon(word[i])&&isCon(word[i+1])&&isCon(word[i+2])){ f3=i; break; }
     targetIndex = (f3!==-1)?f3:0;
   } else {
-    // 2連続子音を探す (2文字モード用)
     let cand = [];
     for(let i=0; i<word.length-1; i++) if(isCon(word[i])&&isCon(word[i+1])) cand.push(i);
     targetIndex = cand.length?cand[Math.floor(Math.random()*cand.length)]:0;
   }
-  
   return { 
     displayed: word.substring(0,targetIndex)+"_".repeat(length)+word.substring(targetIndex+length), 
     answer: word.substr(targetIndex,length) 
@@ -1260,31 +1236,17 @@ function nextSpeakingQuestion(){
   document.getElementById("speakingFeedback").innerText = "";
   document.getElementById("speakingTranscript").innerText = "(ここに認識された文字が出ます)";
   document.getElementById("speakingRoundDisplay").innerText = (speakingIndex + 1) + " / " + speakingOrder.length;
-  
   if(speakingIndex >= speakingOrder.length){
       saveClearCount(studyTitle); alert("Good job!"); return endStudy(true);
   }
-  
   const item = currentList[speakingOrder[speakingIndex]];
-  
-  let target = item.meaning; 
-  let hint = item.word;      
-
-  if(hasJapanese(item.word) && !hasJapanese(item.meaning)) {
-    target = item.meaning;
-    hint = item.word;
-  } 
-  else if(!hasJapanese(item.word) && hasJapanese(item.meaning)) {
-    target = item.word;
-    hint = item.meaning;
-  }
-
+  let target = item.meaning; let hint = item.word;      
+  if(hasJapanese(item.word) && !hasJapanese(item.meaning)) { target = item.meaning; hint = item.word; } 
+  else if(!hasJapanese(item.word) && hasJapanese(item.meaning)) { target = item.word; hint = item.meaning; }
   speakingTargetWord = target;
   document.getElementById("speakingMeaning").innerText = hint;
   setImage("speakingImageArea", item.image);
-
   forceSpeak(hint); 
-
   setTimeout(startListeningSafe, 500);
 }
 function toggleListening(){ isListening ? recognition.stop() : (speakingRetryCount=0, startListeningSafe()); }
@@ -1293,10 +1255,8 @@ function checkSpeakingAnswer(userSpeech){
   let rawSpeech = userSpeech.toLowerCase().trim();
   rawSpeech = rawSpeech.replace(/(\s+ok|\s+okay)[\.\?\!]*$/i, "");
   rawSpeech = rawSpeech.trim(); 
-
   const cleanSpeech = cleanText(rawSpeech);
   const cleanTarget = cleanText(speakingTargetWord);
-  
   const rawTarget = speakingTargetWord.toLowerCase().trim();
   const isHomophoneCheck = homophones[rawTarget] && homophones[rawTarget].includes(rawSpeech);
 
@@ -1321,10 +1281,12 @@ function skipSpeaking(){ forceSpeak(speakingTargetWord); setTimeout(()=>{ speaki
 function speakQuestion(){ forceSpeak(currentList[studyOrder[studyIndex]].word); }
 function speakAnswer(){ forceSpeak(currentList[studyOrder[studyIndex]].meaning); }
 
-// ▼▼▼ 音声関連の改良版 (自然なイントネーションにする修正 + カッコ無視) ▼▼▼
+// ▼▼▼ 音声関連 (頭切れ防止のWait追加版) ▼▼▼
 
 // 利用可能なボイス一覧を保持
 let voices = [];
+let speechTimeout = null; // 連打防止・待機用
+
 function loadVoices() { voices = speechSynthesis.getVoices(); }
 speechSynthesis.onvoiceschanged = loadVoices;
 loadVoices();
@@ -1332,7 +1294,6 @@ loadVoices();
 function getBestVoice(lang) {
   if (!voices.length) loadVoices();
   const targetVoices = voices.filter(v => v.lang && v.lang.replace('_','-').toLowerCase().startsWith(lang.toLowerCase().split('-')[0]));
-  // 日本語の場合: Google > Microsoft > その他
   if (lang.startsWith("ja")) {
     const google = targetVoices.find(v => v.name.includes("Google"));
     if (google) return google;
@@ -1347,22 +1308,28 @@ function forceSpeak(text) {
   // 読み上げ用にカッコとその中身を削除
   const speakText = text.replace(/[（\(].*?[）\)]/g, "").trim();
   
+  // 既存の読み上げをキャンセル
   window.speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(speakText);
   
+  // 待機中の再生があればキャンセル
+  if(speechTimeout) clearTimeout(speechTimeout);
+  
+  const u = new SpeechSynthesisUtterance(speakText);
   const lang = hasJapanese(speakText) ? 'ja-JP' : 'en-US';
   u.lang = lang;
   
   const v = getBestVoice(lang);
   if(v) u.voice = v;
 
-  window.speechSynthesis.speak(u);
+  // ★ここが修正点: 0.05秒(50ms)待ってから再生することで頭切れを防ぐ
+  speechTimeout = setTimeout(() => {
+    window.speechSynthesis.speak(u);
+  }, 50);
 }
 
 function playSequence(list, onComplete){
   if(!list || !list.length){ if(onComplete) onComplete(); return; }
   
-  // 配列をコピーして操作（再帰中の副作用を防ぐ）
   const sequence = [...list];
 
   function playNext(){
@@ -1372,6 +1339,10 @@ function playSequence(list, onComplete){
     const rawText = item.text;
     const speakText = rawText.replace(/[（\(].*?[）\)]/g, "").trim();
     
+    // 既存キャンセル
+    window.speechSynthesis.cancel();
+    if(speechTimeout) clearTimeout(speechTimeout);
+
     const u = new SpeechSynthesisUtterance(speakText);
     const lang = item.lang || (hasJapanese(speakText) ? 'ja-JP' : 'en-US');
     u.lang = lang;
@@ -1382,13 +1353,17 @@ function playSequence(list, onComplete){
     u.onend = () => { setTimeout(playNext, 300); };
     u.onerror = () => { setTimeout(playNext, 300); };
     
-    window.speechSynthesis.speak(u);
+    // ★ここも修正: 50ms待ってから再生
+    speechTimeout = setTimeout(() => {
+      window.speechSynthesis.speak(u);
+    }, 50);
   }
   
+  // 初回呼び出し時も念のためキャンセル
   window.speechSynthesis.cancel(); 
   playNext();
 }
-// ▲▲▲ 改良点ここまで ▲▲▲
+// ▲▲▲ 音声修正ここまで ▲▲▲
 
 function playBeep() {
   if(!audioCtx) return;

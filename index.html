@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>英単語暗記アプリ (Um/Nn Fix)</title>
+<title>英単語暗記アプリ (Feedback Voice Fix)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
 <style>
@@ -1309,15 +1309,17 @@ function forceSpeak(text) {
   const rawText = text.replace(/[（\(].*?[）\)]/g, "").trim();
   if(!rawText) return;
 
-  // ★修正: 言語に合わせてプレフィックスを変更 (頭切れ対策)
-  let prefix = "";
+  // ★修正: 言語に合わせてプレフィックスを変更
+  let speakText = rawText;
   if (hasJapanese(rawText)) {
-    prefix = "ん、"; // 日本語の場合
+    speakText = "ん、" + rawText;
   } else {
-    prefix = "Um, "; // 英語の場合
+    // 英語の場合: "Good job!" と "Try again." のみ "Um, " をつける
+    const lower = rawText.toLowerCase();
+    if (lower.indexOf("good job") !== -1 || lower.indexOf("try again") !== -1) {
+      speakText = "Um, " + rawText;
+    }
   }
-
-  const speakText = prefix + rawText;
   
   // 既存の読み上げをキャンセル
   window.speechSynthesis.cancel();
@@ -1348,13 +1350,16 @@ function playSequence(list, onComplete){
     if(!rawText) { playNext(); return; }
 
     // ★修正: こちらも言語に合わせてプレフィックス変更
-    let prefix = "";
+    let speakText = rawText;
     if (hasJapanese(rawText)) {
-      prefix = "ん、";
+      speakText = "ん、" + rawText;
     } else {
-      prefix = "Um, ";
+      // 英語の場合: "Good job!" と "Try again." のみ "Um, " をつける
+      const lower = rawText.toLowerCase();
+      if (lower.indexOf("good job") !== -1 || lower.indexOf("try again") !== -1) {
+        speakText = "Um, " + rawText;
+      }
     }
-    const speakText = prefix + rawText;
     
     window.speechSynthesis.cancel();
     if(speechTimeout) clearTimeout(speechTimeout);

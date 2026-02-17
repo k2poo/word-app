@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>英単語暗記アプリ (Speech Tweak)</title>
+<title>英単語暗記アプリ (0.2s Delay Fix)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
 <style>
@@ -1281,7 +1281,7 @@ function skipSpeaking(){ forceSpeak(speakingTargetWord); setTimeout(()=>{ speaki
 function speakQuestion(){ forceSpeak(currentList[studyOrder[studyIndex]].word); }
 function speakAnswer(){ forceSpeak(currentList[studyOrder[studyIndex]].meaning); }
 
-// ▼▼▼ 音声関連 ("Um," / "ん、" プレフィックス制御) ▼▼▼
+// ▼▼▼ 音声関連 ("Um," / "ん、" 排除 & 0.2秒ディレイ) ▼▼▼
 
 // 利用可能なボイス一覧を保持
 let voices = [];
@@ -1303,50 +1303,27 @@ function getBestVoice(lang) {
   return targetVoices.find(v => v.default) || targetVoices[0] || null;
 }
 
-// 除外するシステムフレーズ（これらには "Um," をつけない）
-const systemPhrases = [
-  "next question.",
-  "time's up.",
-  "i can't hear you. try again." 
-];
-
-// システム音声かどうかを判定
-function shouldSkipPrefix(text) {
-  if(!text) return true;
-  const t = text.trim().toLowerCase().replace(/[.!?,]/g, "");
-  return systemPhrases.some(p => {
-    const s = p.toLowerCase().replace(/[.!?,]/g, "");
-    return t === s;
-  });
-}
-
 function forceSpeak(text) {
   if(!text || !('speechSynthesis' in window)) return;
+  // 読み上げ用にカッコとその中身を削除
   const rawText = text.replace(/[（\(].*?[）\)]/g, "").trim();
   if(!rawText) return;
 
-  let speakText = rawText;
-  
-  // システム音声以外ならプレフィックスを付与
-  if (!shouldSkipPrefix(rawText)) {
-    if (hasJapanese(rawText)) {
-      speakText = "ん、" + rawText;
-    } else {
-      speakText = "Um, " + rawText;
-    }
-  }
-  
+  // 既存の読み上げをキャンセル(エンジン起動)
   window.speechSynthesis.cancel();
   if(speechTimeout) clearTimeout(speechTimeout);
   
-  const u = new SpeechSynthesisUtterance(speakText);
+  const u = new SpeechSynthesisUtterance(rawText);
   const lang = hasJapanese(rawText) ? 'ja-JP' : 'en-US';
   u.lang = lang;
   
   const v = getBestVoice(lang);
   if(v) u.voice = v;
 
-  window.speechSynthesis.speak(u);
+  // ★修正ポイント: 発話指示から0.2秒待って音声を出す
+  speechTimeout = setTimeout(() => {
+    window.speechSynthesis.speak(u);
+  }, 200);
 }
 
 function playSequence(list, onComplete){
@@ -1361,20 +1338,10 @@ function playSequence(list, onComplete){
     const rawText = item.text.replace(/[（\(].*?[）\)]/g, "").trim();
     if(!rawText) { playNext(); return; }
 
-    let speakText = rawText;
-    // ここでもシステム音声以外ならプレフィックスを付与
-    if (!shouldSkipPrefix(rawText)) {
-        if (hasJapanese(rawText)) {
-          speakText = "ん、" + rawText;
-        } else {
-          speakText = "Um, " + rawText;
-        }
-    }
-    
     window.speechSynthesis.cancel();
     if(speechTimeout) clearTimeout(speechTimeout);
 
-    const u = new SpeechSynthesisUtterance(speakText);
+    const u = new SpeechSynthesisUtterance(rawText);
     const lang = item.lang || (hasJapanese(rawText) ? 'ja-JP' : 'en-US');
     u.lang = lang;
 
@@ -1384,7 +1351,10 @@ function playSequence(list, onComplete){
     u.onend = () => { setTimeout(playNext, 100); };
     u.onerror = () => { setTimeout(playNext, 100); };
     
-    window.speechSynthesis.speak(u);
+    // ★ここも0.2秒待ってから再生
+    speechTimeout = setTimeout(() => {
+      window.speechSynthesis.speak(u);
+    }, 200);
   }
   
   window.speechSynthesis.cancel(); 

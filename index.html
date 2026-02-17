@@ -1134,19 +1134,52 @@ function renderTypingFeedback(currentInput){
     document.getElementById("spellingQuestionText").innerHTML = html;
 }
 function createMaskedWord(word, length){
+ // 文が短すぎる、または空の場合はそのまま返す（既存処理）
   if(!word || word.length <= length) return { displayed: "_".repeat(word ? word.length : length), answer: word };
+
+  // ★追加修正: "Do you" で始まり、かつ3文字モード(length===3)の場合の特別ルール
+  // 3番目、4番目、5番目の単語の「最初の1文字」を穴埋めにする
+  // 例: "Do you have a pen?" -> words=["Do","you","have","a","pen?"] 
+  // -> 3番目(have)のh, 4番目(a)のa, 5番目(pen?)のp が正解となる
+  if (length === 3 && word.toLowerCase().startsWith("do you")) {
+    const parts = word.split(" ");
+    // 単語数が5個以上ある場合のみ適用（5単語未満だと5番目が取得できないためエラー回避）
+    if (parts.length >= 5) {
+       let ans = "";
+       let newParts = [...parts];
+       
+       // プログラム上は0始まりなので、3,4,5番目は index 2,3,4 になります
+       [2, 3, 4].forEach(idx => {
+         const originalWord = parts[idx];
+         const firstChar = originalWord.charAt(0);
+         ans += firstChar; // 正解文字列に追加
+         // 表示用: 頭文字を_に置換して、残りの文字と結合
+         newParts[idx] = "_" + originalWord.slice(1); 
+       });
+
+       return { displayed: newParts.join(" "), answer: ans };
+    }
+  }
+
+  // --- 以下、既存のロジック (変更なし) ---
   const isCon = c => /[bcdfghjklmnpqrstvwxyz]/i.test(c);
   let targetIndex = 0;
   if(length === 3) {
     let f3 = -1;
+    // 3連続子音を探す
     for(let i=0; i<word.length-2; i++) if(isCon(word[i])&&isCon(word[i+1])&&isCon(word[i+2])){ f3=i; break; }
     targetIndex = (f3!==-1)?f3:0;
   } else {
+    // 2連続子音を探す (2文字モード用)
     let cand = [];
     for(let i=0; i<word.length-1; i++) if(isCon(word[i])&&isCon(word[i+1])) cand.push(i);
     targetIndex = cand.length?cand[Math.floor(Math.random()*cand.length)]:0;
   }
-  return { displayed: word.substring(0,targetIndex)+"_".repeat(length)+word.substring(targetIndex+length), answer: word.substr(targetIndex,length) };
+  
+  return { 
+    displayed: word.substring(0,targetIndex)+"_".repeat(length)+word.substring(targetIndex+length), 
+    answer: word.substr(targetIndex,length) 
+  };
 }
 function checkSpellingAnswer(){
   if(appMode === 'typing') return; 

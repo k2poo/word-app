@@ -1281,7 +1281,7 @@ function skipSpeaking(){ forceSpeak(speakingTargetWord); setTimeout(()=>{ speaki
 function speakQuestion(){ forceSpeak(currentList[studyOrder[studyIndex]].word); }
 function speakAnswer(){ forceSpeak(currentList[studyOrder[studyIndex]].meaning); }
 
-// ▼▼▼ 音声関連 ("Um," / "ん、" 排除 & 0.2秒ディレイ) ▼▼▼
+// ▼▼▼ 音声関連 ("Um," / "ん、" 排除 & 0.5秒ディレイ) ▼▼▼
 
 // 利用可能なボイス一覧を保持
 let voices = [];
@@ -1320,10 +1320,10 @@ function forceSpeak(text) {
   const v = getBestVoice(lang);
   if(v) u.voice = v;
 
-  // ★修正ポイント: 発話指示から0.2秒待って音声を出す
+  // ★修正ポイント: 発話指示から0.5秒待って音声を出す
   speechTimeout = setTimeout(() => {
     window.speechSynthesis.speak(u);
-  }, 200);
+  }, 500);
 }
 
 function playSequence(list, onComplete){
@@ -1351,10 +1351,10 @@ function playSequence(list, onComplete){
     u.onend = () => { setTimeout(playNext, 100); };
     u.onerror = () => { setTimeout(playNext, 100); };
     
-    // ★ここも0.2秒待ってから再生
+    // ★ここも0.5秒待ってから再生
     speechTimeout = setTimeout(() => {
       window.speechSynthesis.speak(u);
-    }, 200);
+    }, 500);
   }
   
   window.speechSynthesis.cancel(); 

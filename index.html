@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>英単語暗記アプリ (Silent Wake-up Fix)</title>
+<title>英単語暗記アプリ (0.5s Pre-WakeUp)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
 <style>
@@ -529,7 +529,7 @@ let loadedBasicList = [];
 let loadedInterList = [];
 let loadedCounts = {};
 
-// === 切迫モード用変数 ===
+// === 切迫モード・Web Audio用 ===
 let urgentTimeouts = []; 
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -555,54 +555,16 @@ let speakingRetryCount = 0;
 
 // === 同音異義語・数字変換リスト (Speaking Mode用) ===
 const homophones = {
-    // フルーツ・植物
-    "pear": ["pair", "pare"],
-    "flower": ["flour"],
-    "berry": ["bury"],
-    "currant": ["current"],
-    "melon": [], 
-
-    // 動物
-    "bear": ["bare"],
-    "deer": ["dear"],
-    "ant": ["aunt"],
-    "horse": ["hoarse"],
-    
-    // 色
-    "red": ["read"], // read(過去形)
-    "blue": ["blew"],
-
-    // 数字
-    "one": ["won", "1"],
-    "two": ["to", "too", "2"],
-    "three": ["3"],
-    "four": ["for", "fore", "4"],
-    "five": ["5"],
-    "six": ["6"],
-    "seven": ["7"],
-    "eight": ["ate", "8"],
-    "nine": ["9"],
-    "ten": ["10"],
-    "zero": ["0"],
-    "eleven": ["11"],
-    "twelve": ["12"],
-    "thirteen": ["13"],
-    "fourteen": ["14"],
-    "fifteen": ["15"],
-    "sixteen": ["16"],
-    "seventeen": ["17"],
-    "eighteen": ["18"],
-    "nineteen": ["19"],
-    "twenty": ["20"],
-    "thirty": ["30"],
-    "forty": ["40"],
-    "fifty": ["50"],
-    "sixty": ["60"],
-    "seventy": ["70"],
-    "eighty": ["80"],
-    "ninety": ["90"],
-    "one hundred": ["100"],
-    "one thousand": ["1000", "1,000"],
+    "pear": ["pair", "pare"], "flower": ["flour"], "berry": ["bury"], "currant": ["current"],
+    "bear": ["bare"], "deer": ["dear"], "ant": ["aunt"], "horse": ["hoarse"],
+    "red": ["read"], "blue": ["blew"], "one": ["won", "1"], "two": ["to", "too", "2"],
+    "three": ["3"], "four": ["for", "fore", "4"], "five": ["5"], "six": ["6"],
+    "seven": ["7"], "eight": ["ate", "8"], "nine": ["9"], "ten": ["10"], "zero": ["0"],
+    "eleven": ["11"], "twelve": ["12"], "thirteen": ["13"], "fourteen": ["14"],
+    "fifteen": ["15"], "sixteen": ["16"], "seventeen": ["17"], "eighteen": ["18"],
+    "nineteen": ["19"], "twenty": ["20"], "thirty": ["30"], "forty": ["40"],
+    "fifty": ["50"], "sixty": ["60"], "seventy": ["70"], "eighty": ["80"],
+    "ninety": ["90"], "one hundred": ["100"], "one thousand": ["1000", "1,000"],
     "ten thousand": ["10000", "10,000", "10 thousand"],
     "one hundred thousand": ["100000", "100,000", "a hundred thousand"],
     "one million":["1,000,000", "1000000", "1 million"],
@@ -611,23 +573,10 @@ const homophones = {
     "one billion":["1,000,000,000", "1000000000", "1 billion"],
     "ten billion":["10,000,000,000", "10000000000", "10 billion"],
     "one hundred billion":["100,000,000,000", "100000000000", "100 billion", "a hundred billion"],
-  
-    // その他頻出単語
-    "sun": ["son"],
-    "sea": ["see"],
-    "right": ["write", "wright"],
-    "buy": ["by", "bye"],
-    "eye": ["i"],
-    "hour": ["our"],
-    "know": ["no"],
-    "new": ["knew"],
-    "meat": ["meet"],
-    "week": ["weak"],
-    "May": ["may"],
-    "where": ["wear"],
-    "mummy": ["mommy"],
-    "aunt": ["ant"],
-    "witch": ["which"]
+    "sun": ["son"], "sea": ["see"], "right": ["write", "wright"], "buy": ["by", "bye"],
+    "eye": ["i"], "hour": ["our"], "know": ["no"], "new": ["knew"], "meat": ["meet"],
+    "week": ["weak"], "May": ["may"], "where": ["wear"], "mummy": ["mommy"],
+    "aunt": ["ant"], "witch": ["which"]
 };
 
 // ===== 認証・同期ロジック (Auth) =====
@@ -848,6 +797,10 @@ function setMode(mode){
     if(el) el.className = 'mode-option' + (mode === m ? ' mode-active' : '');
   });
   renderLists();
+  // ユーザー操作時にAudioContextをアクティブにしておく
+  if(audioCtx && audioCtx.state === 'suspended'){
+    audioCtx.resume().catch(e=>console.log(e));
+  }
 }
 
 async function loadAllLists(){
@@ -882,6 +835,9 @@ async function loadAllLists(){
 }
 
 async function startSession(folder, title, file, directData){
+  // セッション開始時も念のためAudioContextをResume
+  if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume().catch(e=>console.log(e));
+
   studyStartTime = Date.now();
   
   if(directData){
@@ -942,13 +898,13 @@ function nextQuestion(){
 function markKnow(){ 
   showAnswer(); 
   forceSpeak(currentList[studyOrder[studyIndex]].meaning);
-  setTimeout(()=>{studyIndex++;nextQuestion();},700); 
+  setTimeout(()=>{studyIndex++;nextQuestion();},1500); // 0.5秒プレ＋発話時間考慮で少し余裕
 }
 function markDontKnow(){ 
   dontKnow.push(studyOrder[studyIndex]); 
   showAnswer();
   forceSpeak(currentList[studyOrder[studyIndex]].meaning);
-  setTimeout(()=>{studyIndex++;nextQuestion();},1200); 
+  setTimeout(()=>{studyIndex++;nextQuestion();},2000); 
 }
 function showAnswer(){ 
   document.getElementById("answerMeaning").innerText=currentList[studyOrder[studyIndex]].meaning; 
@@ -981,9 +937,12 @@ function nextGameQuestion(){
   document.getElementById("gameQuestionWord").innerText = currentCorrectItem.word;
   document.getElementById("listeningMsg").style.display = "block";
   setImage("gameImageArea", currentCorrectItem.image);
+  
   setTimeout(() => forceSpeak(currentCorrectItem.word), 400);
+  
   stopUrgentTimer();
   if(appMode === 'urgent') {
+    // タイムアタック用ビープ音
     const startDelay = 2000;
     urgentTimeouts.push(setTimeout(playBeep, startDelay));            
     urgentTimeouts.push(setTimeout(playBeep, startDelay + 600));      
@@ -1247,7 +1206,7 @@ function nextSpeakingQuestion(){
   document.getElementById("speakingMeaning").innerText = hint;
   setImage("speakingImageArea", item.image);
   forceSpeak(hint); 
-  setTimeout(startListeningSafe, 500);
+  setTimeout(startListeningSafe, 1500); // 発話待ち時間を考慮して長めに
 }
 function toggleListening(){ isListening ? recognition.stop() : (speakingRetryCount=0, startListeningSafe()); }
 
@@ -1270,18 +1229,18 @@ function checkSpeakingAnswer(userSpeech){
       });
   } else {
       feedback.innerText = `❌ Try again...`; feedback.style.color = "red";
-      forceSpeak("Try again"); setTimeout(startListeningSafe, 1500);
+      forceSpeak("Try again"); setTimeout(startListeningSafe, 2000);
   }
 }
 
 function playSpeakingTarget(){ forceSpeak(speakingTargetWord); }
-function skipSpeaking(){ forceSpeak(speakingTargetWord); setTimeout(()=>{ speakingIndex++; nextSpeakingQuestion(); }, 1000); }
+function skipSpeaking(){ forceSpeak(speakingTargetWord); setTimeout(()=>{ speakingIndex++; nextSpeakingQuestion(); }, 1500); }
 
 // 共通
 function speakQuestion(){ forceSpeak(currentList[studyOrder[studyIndex]].word); }
 function speakAnswer(){ forceSpeak(currentList[studyOrder[studyIndex]].meaning); }
 
-// ▼▼▼ 音声関連 ("Um," / "ん、" 排除 & 0.2秒ディレイ) ▼▼▼
+// ▼▼▼ 音声関連 (無音再生0.5s + TTS) ▼▼▼
 
 // 利用可能なボイス一覧を保持
 let voices = [];
@@ -1303,27 +1262,49 @@ function getBestVoice(lang) {
   return targetVoices.find(v => v.default) || targetVoices[0] || null;
 }
 
+// 0.5秒の無音をWebAudioAPIで再生してスピーカーを起こす
+function wakeUpAudio() {
+    if (!audioCtx) return;
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(e => console.log(e));
+    }
+    try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        // ほぼ無音(0Hzは一部環境でバグるため極低周波、または可聴域外)
+        osc.frequency.setValueAtTime(1, audioCtx.currentTime); 
+        // 極小音量
+        gain.gain.setValueAtTime(0.001, audioCtx.currentTime); 
+        
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.5); // 0.5秒間流し続ける
+    } catch(e) {
+        console.error("Audio wake up error", e);
+    }
+}
+
 function forceSpeak(text) {
   if(!text || !('speechSynthesis' in window)) return;
-  // 読み上げ用にカッコとその中身を削除
   const rawText = text.replace(/[（\(].*?[）\)]/g, "").trim();
   if(!rawText) return;
 
-  // 既存の読み上げをキャンセル(エンジン起動)
   window.speechSynthesis.cancel();
   if(speechTimeout) clearTimeout(speechTimeout);
   
-  const u = new SpeechSynthesisUtterance(rawText);
-  const lang = hasJapanese(rawText) ? 'ja-JP' : 'en-US';
-  u.lang = lang;
-  
-  const v = getBestVoice(lang);
-  if(v) u.voice = v;
+  // ★まず無音を再生してスピーカーを起こす
+  wakeUpAudio();
 
-  // ★修正ポイント: 発話指示から0.2秒待って音声を出す
+  // ★0.5秒後に発話開始
   speechTimeout = setTimeout(() => {
+    const u = new SpeechSynthesisUtterance(rawText);
+    const lang = hasJapanese(rawText) ? 'ja-JP' : 'en-US';
+    u.lang = lang;
+    const v = getBestVoice(lang);
+    if(v) u.voice = v;
     window.speechSynthesis.speak(u);
-  }, 200);
+  }, 500);
 }
 
 function playSequence(list, onComplete){
@@ -1341,20 +1322,21 @@ function playSequence(list, onComplete){
     window.speechSynthesis.cancel();
     if(speechTimeout) clearTimeout(speechTimeout);
 
-    const u = new SpeechSynthesisUtterance(rawText);
-    const lang = item.lang || (hasJapanese(rawText) ? 'ja-JP' : 'en-US');
-    u.lang = lang;
+    // ★シーケンス内でも発話ごとに無音ウェイトを入れる
+    wakeUpAudio();
 
-    const v = getBestVoice(lang);
-    if(v) u.voice = v;
-
-    u.onend = () => { setTimeout(playNext, 100); };
-    u.onerror = () => { setTimeout(playNext, 100); };
-    
-    // ★ここも0.2秒待ってから再生
     speechTimeout = setTimeout(() => {
-      window.speechSynthesis.speak(u);
-    }, 200);
+        const u = new SpeechSynthesisUtterance(rawText);
+        const lang = item.lang || (hasJapanese(rawText) ? 'ja-JP' : 'en-US');
+        u.lang = lang;
+        const v = getBestVoice(lang);
+        if(v) u.voice = v;
+
+        u.onend = () => { setTimeout(playNext, 100); };
+        u.onerror = () => { setTimeout(playNext, 100); };
+        
+        window.speechSynthesis.speak(u);
+    }, 500); // 毎回0.5秒待つ（テンポは落ちるが頭切れは確実に防ぐ）
   }
   
   window.speechSynthesis.cancel(); 
@@ -1364,6 +1346,7 @@ function playSequence(list, onComplete){
 
 function playBeep() {
   if(!audioCtx) return;
+  if(audioCtx.state === 'suspended') audioCtx.resume().catch(e=>console.log(e));
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
   osc.connect(gain); gain.connect(audioCtx.destination);

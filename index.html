@@ -1133,35 +1133,43 @@ function renderTypingFeedback(currentInput){
     }
     document.getElementById("spellingQuestionText").innerHTML = html;
 }
+
 function createMaskedWord(word, length){
   // エラー回避: 文が短すぎる、または空の場合はそのまま返す
   if(!word || word.length <= length) return { displayed: "_".repeat(word ? word.length : length), answer: word };
 
   // ★修正箇所: 3文字モード かつ 文末が . ? ! のいずれかで終わっている場合
-  // trim()で末尾の空白を除去してから判定
   if (length === 3 && /[.?!]$/.test(word.trim())) {
     const parts = word.split(" ");
     
     // 後ろから順にループして対象の単語を探す
     for (let i = parts.length - 1; i >= 0; i--) {
-      // その語が3文字以上（母音・子音・記号すべて含む長さ）かチェック
-      if (parts[i].length >= 3) {
-         const targetWord = parts[i];
+      let w = parts[i];
+      let p = "";
+
+      // 単語の末尾が . ? ! なら、それを一時的に分離する
+      // 例: "pen?" -> w="pen", p="?"
+      if(/[.?!]$/.test(w)){
+        p = w.slice(-1);
+        w = w.slice(0, -1);
+      }
+
+      // 記号を除いた部分が3文字以上あるかチェック
+      if (w.length >= 3) {
+         // 正解: 記号を除いた部分の後ろ3文字
+         const ans = w.slice(-3);
          
-         // 最後の3文字を正解(answer)として切り出す
-         const ans = targetWord.slice(-3);
-         
-         // 表示用: 最後の3文字を "___" に置き換える
-         // slice(0, -3) で「後ろ3文字を除いた部分」を取得し、それに "_" を3つ足す
-         parts[i] = targetWord.slice(0, -3) + "___"; 
+         // 表示用: 記号を除いた部分の後ろ3文字を "___" に置換し、最後に記号を戻す
+         // 例: "tall" -> "t" + "___" + "." -> "t___."
+         parts[i] = w.slice(0, -3) + "___" + p; 
          
          return { displayed: parts.join(" "), answer: ans };
       }
     }
-    // もし3文字以上の単語が一つも見つからない場合は、下部の既存ロジックへ進みます
+    // 条件に合う単語が見つからない場合は、以下の既存ロジックへ進みます
   }
 
-  // --- 以下、既存のロジック (通常の単語や、条件に当てはまらない場合用) ---
+  // --- 以下、既存のロジック (変更なし) ---
   const isCon = c => /[bcdfghjklmnpqrstvwxyz]/i.test(c);
   let targetIndex = 0;
   if(length === 3) {

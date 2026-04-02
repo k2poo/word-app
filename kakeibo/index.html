@@ -3,372 +3,181 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>家計簿アプリ（実用版）</title>
+<title>家計簿アプリ（Firebase版）</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <style>
 body { font-family: sans-serif; background:#f5f5f5; margin:0; }
 .container { padding:10px; max-width: 600px; margin: auto; }
 .card { background:white; border-radius:12px; padding:15px; margin:10px 0; box-shadow:0 2px 8px rgba(0,0,0,0.1); }
-button { width:100%; padding:12px; margin:5px 0; border:none; border-radius:8px; background:#4CAF50; color:white; font-size: 16px; cursor: pointer; }
-button:hover { background:#45a049; }
-input, select, textarea { width:100%; padding:10px; margin:5px 0; border-radius:8px; border:1px solid #ccc; box-sizing: border-box; font-size: 16px; }
+button { width:100%; padding:12px; margin:5px 0; border:none; border-radius:8px; background:#4CAF50; color:white; }
 .hidden { display:none; }
-.history-item { border-bottom: 1px solid #eee; padding: 10px 0; }
-.history-item:last-child { border-bottom: none; }
-h4 { margin: 10px 0 5px 0; color: #333; }
 </style>
 </head>
+
 <body>
 <div class="container">
-<h2>家計簿アプリ</h2>
+<h2>家計簿アプリ（クラウド同期）</h2>
 
-<div id="home" class="card">
-<button onclick="show('plan')">本日の支出予定</button>
-<button onclick="show('result')">本日の支出結果</button>
-<button onclick="show('income')">月の収入</button>
-<button onclick="show('monthly')">月の集計（収支確認）</button>
-<button onclick="show('history')">履歴一覧（日別リスト）</button>
-<button onclick="show('editDay')">日付編集</button>
-<button onclick="show('editMonth')">収入修正</button>
-<button onclick="exportCSV()" style="background:#2196F3;">CSV出力</button>
+<div id="loginArea" class="card">
+<button onclick="login()">Googleでログイン</button>
+</div>
+
+<div id="home" class="card hidden">
+<button onclick="show('plan')">支出予定</button>
+<button onclick="show('result')">支出結果</button>
+<button onclick="show('monthly')">月集計</button>
+<button onclick="logout()">ログアウト</button>
 </div>
 
 <div id="plan" class="card hidden">
-<h3>支出予定</h3>
-<div id="planDate" style="margin-bottom:10px; font-weight:bold;"></div>
 <input type="number" id="planAmount" placeholder="金額">
 <input type="text" id="planPurpose" placeholder="用途">
 <select id="planCategory">
 <option>園芸</option><option>遊興</option><option>家計</option><option>その他</option>
 </select>
 <button onclick="savePlan()">保存</button>
-<button onclick="back()" style="background:#757575;">戻る</button>
 </div>
 
 <div id="result" class="card hidden">
-<h3>支出結果</h3>
-<div id="resultDate" style="margin-bottom:10px; font-weight:bold;"></div>
 <input type="number" id="resultAmount" placeholder="金額">
 <input type="text" id="resultPurpose" placeholder="用途">
 <select id="resultCategory">
 <option>園芸</option><option>遊興</option><option>家計</option><option>その他</option>
 </select>
-<textarea id="reflection" placeholder="振り返り"></textarea>
 <button onclick="saveResult()">保存</button>
-<button onclick="back()" style="background:#757575;">戻る</button>
-</div>
-
-<div id="income" class="card hidden">
-<h3>収入入力</h3>
-<input type="month" id="incomeMonth">
-<input type="number" id="incomeAmount" placeholder="金額">
-<select id="incomeType">
-<option>給与</option><option>臨時</option><option>年金</option><option>副業</option><option>その他</option>
-</select>
-<button onclick="saveIncome()">保存</button>
-<button onclick="back()" style="background:#757575;">戻る</button>
 </div>
 
 <div id="monthly" class="card hidden">
-<h3>月別集計</h3>
 <input type="month" id="monthlyMonth">
-<select id="chartType">
-<option value="pie">円グラフ</option>
-<option value="bar">棒グラフ</option>
-</select>
 <button onclick="calcMonthly()">表示</button>
-<div id="monthlyResult" style="margin: 15px 0; font-size: 18px;"></div>
 <canvas id="chart"></canvas>
-<button onclick="back()" style="background:#757575;">戻る</button>
-</div>
-
-<div id="history" class="card hidden">
-<h3>履歴一覧</h3>
-<div id="historyList"></div>
-<button onclick="back()" style="background:#757575;">戻る</button>
-</div>
-
-<div id="editDay" class="card hidden">
-<h3>日付編集</h3>
-<input type="date" id="editDate">
-<button onclick="loadDay()">読み込み</button>
-<div id="editArea"></div>
-<button onclick="back()" style="background:#757575;">戻る</button>
-</div>
-
-<div id="editMonth" class="card hidden">
-<h3>収入修正</h3>
-<input type="month" id="editIncomeMonth">
-<button onclick="loadIncome()">読み込み</button>
-<div id="incomeEditArea"></div>
-<button onclick="back()" style="background:#757575;">戻る</button>
+<div id="monthlyResult"></div>
 </div>
 
 </div>
 
-<script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+// 🔴ここを自分のFirebaseに置き換える
+const firebaseConfig = {
+    apiKey: "AIzaSyB9Phxm6u2o8z-ea7qAJqyqj9zTd1R1gAI",
+    authDomain: "k2-kakeibo.firebaseapp.com",
+    projectId: "k2-kakeibo",
+    storageBucket: "k2-kakeibo.firebasestorage.app",
+    messagingSenderId: "750885231235",
+    appId: "1:750885231235:web:96c9a3a2366b25bf7159b6",
+    measurementId: "G-L67LWYN5LF"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+let userId = null;
+let data = {};
 let chart;
 
-// 画面切り替えと初期化
-function show(id){ 
-  document.querySelectorAll('.card').forEach(d => d.classList.add('hidden')); 
-  document.getElementById(id).classList.remove('hidden'); 
-  
-  if(id === 'plan') setDate('planDate'); 
-  if(id === 'result') setDate('resultDate'); 
-  if(id === 'history') loadHistory();
-}
+// ログイン
+window.login = async function(){
+  const provider = new GoogleAuthProvider();
+  const result = await signInWithPopup(auth, provider);
+  userId = result.user.uid;
+};
 
-function back(){ show('home'); }
+// ログアウト
+window.logout = function(){
+  signOut(auth);
+};
 
-// 日付表示（ローカルタイムゾーンを考慮）
-function setDate(id){ 
-  let d = new Date(); 
-  let dateStr = d.getFullYear() + '年' + (d.getMonth()+1) + '月' + d.getDate() + '日 (' + d.toLocaleDateString('ja-JP',{weekday:'short'}) + ')';
-  document.getElementById(id).innerText = dateStr; 
-}
-
-// ローカルストレージの操作
-function getData(){ return JSON.parse(localStorage.getItem('kakeibo') || '{}'); }
-function saveData(d){ localStorage.setItem('kakeibo', JSON.stringify(d)); }
-
-// 今日のキーを取得 (日本時間等のローカルタイムを正しく YYYY-MM-DD にする)
-function todayKey(){ 
-  let d = new Date();
-  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); 
-}
-
-// 保存処理
-function savePlan(){ 
-  let d = getData(), k = todayKey(); 
-  d[k] = d[k] || {}; 
-  d[k].plan = {amount: planAmount.value, purpose: planPurpose.value, category: planCategory.value}; 
-  saveData(d); 
-  alert('予定を保存しました'); 
-  planAmount.value=''; planPurpose.value='';
-}
-
-function saveResult(){ 
-  let d = getData(), k = todayKey(); 
-  d[k] = d[k] || {}; 
-  d[k].result = {amount: resultAmount.value, purpose: resultPurpose.value, category: resultCategory.value, reflection: reflection.value}; 
-  saveData(d); 
-  alert('結果を保存しました'); 
-  resultAmount.value=''; resultPurpose.value=''; reflection.value='';
-}
-
-function saveIncome(){ 
-  let d = getData(), k = incomeMonth.value; 
-  if(!k) return alert('月を選択してください');
-  d[k] = d[k] || {}; 
-  d[k].income = d[k].income || []; 
-  d[k].income.push({amount: incomeAmount.value, type: incomeType.value}); 
-  saveData(d); 
-  alert('収入を保存しました'); 
-  incomeAmount.value='';
-}
-
-// 月別集計（収支バランス計算）
-function calcMonthly(){ 
-  let d = getData(), m = monthlyMonth.value; 
-  if(!m) return alert('月を選択してください');
-
-  let cat = {"園芸":0, "遊興":0, "家計":0, "その他":0}; 
-  let totalExpense = 0; 
-  let totalIncome = 0;
-
-  // 収入の合算 (キーが 'YYYY-MM' )
-  if(d[m] && d[m].income){
-    d[m].income.forEach(i => totalIncome += Number(i.amount));
+// ログイン状態監視
+onAuthStateChanged(auth, async (user) => {
+  if(user){
+    userId = user.uid;
+    document.getElementById("loginArea").classList.add("hidden");
+    document.getElementById("home").classList.remove("hidden");
+    await loadData();
+  } else {
+    document.getElementById("loginArea").classList.remove("hidden");
+    document.getElementById("home").classList.add("hidden");
   }
+});
 
-  // 支出の合算 (キーが 'YYYY-MM-DD' )
-  for(let k in d){ 
-    if(k.startsWith(m) && d[k].result){ 
-      let r = d[k].result; 
-      totalExpense += Number(r.amount || 0); 
-      if(cat[r.category] !== undefined) {
-        cat[r.category] += Number(r.amount || 0); 
-      } else {
-        cat["その他"] += Number(r.amount || 0);
-      }
+// Firestoreから読み込み
+async function loadData(){
+  const ref = doc(db, "kakeibo", userId);
+  const snap = await getDoc(ref);
+  data = snap.exists() ? snap.data() : {};
+}
+
+// Firestoreへ保存
+async function saveData(){
+  await setDoc(doc(db, "kakeibo", userId), data);
+}
+
+// 今日キー
+function todayKey(){
+  let d=new Date();
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,'0')+"-"+String(d.getDate()).padStart(2,'0');
+}
+
+// 画面切替
+window.show = function(id){
+  document.querySelectorAll('.card').forEach(d=>d.classList.add('hidden'));
+  document.getElementById(id).classList.remove('hidden');
+};
+
+// 保存
+window.savePlan = async function(){
+  let k = todayKey();
+  data[k] = data[k] || {};
+  data[k].plan = {
+    amount: planAmount.value,
+    purpose: planPurpose.value,
+    category: planCategory.value
+  };
+  await saveData();
+  alert("保存");
+};
+
+window.saveResult = async function(){
+  let k = todayKey();
+  data[k] = data[k] || {};
+  data[k].result = {
+    amount: resultAmount.value,
+    purpose: resultPurpose.value,
+    category: resultCategory.value
+  };
+  await saveData();
+  alert("保存");
+};
+
+// 月集計
+window.calcMonthly = function(){
+  let m = monthlyMonth.value;
+  let cat = {"園芸":0,"遊興":0,"家計":0,"その他":0};
+  let total=0;
+
+  for(let k in data){
+    if(k.startsWith(m) && data[k].result){
+      let r = data[k].result;
+      total += Number(r.amount||0);
+      cat[r.category]+=Number(r.amount||0);
     }
-  } 
-
-  // 収支バランスの表示
-  let balance = totalIncome - totalExpense;
-  let balanceColor = balance >= 0 ? '#1976D2' : '#D32F2F'; // 黒字は青、赤字は赤
-  let balanceText = balance >= 0 ? '黒字' : '赤字';
-
-  monthlyResult.innerHTML = `
-    <div>収入合計: <strong>${totalIncome.toLocaleString()}円</strong></div>
-    <div>支出合計: <strong>${totalExpense.toLocaleString()}円</strong></div>
-    <div style="color:${balanceColor}; margin-top:5px;">
-      収支バランス: <strong>${balance.toLocaleString()}円 (${balanceText})</strong>
-    </div>
-  `;
-
-  drawChart(cat); 
-}
-
-function drawChart(cat){ 
-  let type = chartType.value; 
-  let ctx = document.getElementById('chart'); 
-  if(chart) chart.destroy(); 
-  chart = new Chart(ctx, {
-    type: type, 
-    data: {
-      labels: Object.keys(cat), 
-      datasets: [{
-        label: '支出カテゴリ別',
-        data: Object.values(cat),
-        backgroundColor: ['#4CAF50', '#FF9800', '#2196F3', '#9E9E9E']
-      }]
-    }
-  }); 
-}
-
-// 履歴一覧の表示
-function loadHistory(){
-  let d = getData();
-  let html = '';
-  // 日付の降順（新しい順）でソート
-  let keys = Object.keys(d).filter(k => k.match(/^\d{4}-\d{2}-\d{2}$/)).sort((a,b) => b.localeCompare(a));
-  
-  if(keys.length === 0) {
-    html = '<p>データがありません</p>';
-  } else {
-    keys.forEach(k => {
-      let p = d[k].plan;
-      let r = d[k].result;
-      html += `<div class="history-item">
-        <strong>${k}</strong><br>
-        <span style="color:#757575; font-size:14px;">
-          [予定] ${p ? (p.amount + '円 / ' + p.purpose + ' / ' + p.category) : '未入力'} <br>
-          [結果] ${r ? (r.amount + '円 / ' + r.purpose + ' / ' + r.category) : '未入力'}
-        </span>
-      </div>`;
-    });
   }
-  document.getElementById('historyList').innerHTML = html;
-}
 
-// 日付編集機能（用途・分類も編集可能に拡張）
-function loadDay(){ 
-  let d = getData(), k = editDate.value; 
-  if(!k) return alert('日付を選択してください');
-  
-  let html = ''; 
-  if(d[k]){ 
-    let p = d[k].plan || {};
-    let r = d[k].result || {};
-    
-    // 予定の編集エリア
-    html += `<h4>予定</h4>`;
-    html += `<input type="number" id="editPlanAmount" value="${p.amount || ''}" placeholder="金額">`;
-    html += `<input type="text" id="editPlanPurpose" value="${p.purpose || ''}" placeholder="用途">`;
-    html += `<select id="editPlanCategory">
-      <option ${p.category==='園芸'?'selected':''}>園芸</option>
-      <option ${p.category==='遊興'?'selected':''}>遊興</option>
-      <option ${p.category==='家計'?'selected':''}>家計</option>
-      <option ${p.category==='その他'?'selected':''}>その他</option>
-    </select>`;
+  monthlyResult.innerText = "合計:"+total;
 
-    // 結果の編集エリア
-    html += `<h4>結果</h4>`;
-    html += `<input type="number" id="editResultAmount" value="${r.amount || ''}" placeholder="金額">`;
-    html += `<input type="text" id="editResultPurpose" value="${r.purpose || ''}" placeholder="用途">`;
-    html += `<select id="editResultCategory">
-      <option ${r.category==='園芸'?'selected':''}>園芸</option>
-      <option ${r.category==='遊興'?'selected':''}>遊興</option>
-      <option ${r.category==='家計'?'selected':''}>家計</option>
-      <option ${r.category==='その他'?'selected':''}>その他</option>
-    </select>`;
+  if(chart) chart.destroy();
+  chart = new Chart(document.getElementById("chart"),{
+    type:"pie",
+    data:{labels:Object.keys(cat),datasets:[{data:Object.values(cat)}]}
+  });
+};
 
-    html += `<button onclick="saveEdit('${k}')" style="margin-top:15px;">上書き保存</button>`;
-  } else {
-    html = '<p>指定した日付のデータがありません。</p>';
-  }
-  editArea.innerHTML = html; 
-}
-
-function saveEdit(k){ 
-  let d = getData(); 
-  if(!d[k]) d[k] = {};
-  
-  // 予定の更新
-  if(document.getElementById('editPlanAmount')){
-    d[k].plan = d[k].plan || {};
-    d[k].plan.amount = document.getElementById('editPlanAmount').value;
-    d[k].plan.purpose = document.getElementById('editPlanPurpose').value;
-    d[k].plan.category = document.getElementById('editPlanCategory').value;
-  }
-  
-  // 結果の更新
-  if(document.getElementById('editResultAmount')){
-    d[k].result = d[k].result || {};
-    d[k].result.amount = document.getElementById('editResultAmount').value;
-    d[k].result.purpose = document.getElementById('editResultPurpose').value;
-    d[k].result.category = document.getElementById('editResultCategory').value;
-  }
-  
-  saveData(d); 
-  alert('内容を更新しました'); 
-}
-
-// 収入修正
-function loadIncome(){ 
-  let d = getData(), k = editIncomeMonth.value; 
-  if(!k) return alert('月を選択してください');
-
-  let html = ''; 
-  if(d[k]?.income && d[k].income.length > 0){ 
-    d[k].income.forEach((inc, idx) => { 
-      html += `<div style="display:flex; margin-bottom:5px;">
-        <span style="width:60px; line-height:40px;">${inc.type}</span>
-        <input type="number" value="${inc.amount}" onchange="editIncomeVal('${k}',${idx},this.value)">
-      </div>`; 
-    }); 
-  } else {
-    html = '<p>データがありません</p>';
-  }
-  incomeEditArea.innerHTML = html; 
-}
-
-function editIncomeVal(k, i, val){ 
-  let d = getData(); 
-  d[k].income[i].amount = val; 
-  saveData(d); 
-}
-
-// CSVエクスポート
-function exportCSV(){ 
-  let d = getData(); 
-  let rows = [['日付','予定金額','予定用途','結果金額','結果用途','分類','振り返り']]; 
-  
-  // 日付キーのみ抽出してソート
-  let keys = Object.keys(d).filter(k => k.match(/^\d{4}-\d{2}-\d{2}$/)).sort();
-  
-  keys.forEach(k => { 
-    rows.push([
-      k, 
-      d[k].plan?.amount || '', 
-      d[k].plan?.purpose || '', 
-      d[k].result?.amount || '', 
-      d[k].result?.purpose || '', 
-      d[k].result?.category || '', 
-      d[k].result?.reflection || ''
-    ]); 
-  }); 
-  
-  // BOM付きUTF-8にしてExcelでの文字化けを防ぐ
-  let csv = "\uFEFF" + rows.map(r => r.join(',')).join('\n'); 
-  let blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'}); 
-  let a = document.createElement('a'); 
-  a.href = URL.createObjectURL(blob); 
-  a.download = 'kakeibo.csv'; 
-  a.click(); 
-}
 </script>
 </body>
 </html>

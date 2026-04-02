@@ -3,66 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>家計簿アプリ（Firebase版）</title>
+<title>家計簿アプリ（クラウド版）</title>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-<style>
-body { font-family: sans-serif; background:#f5f5f5; margin:0; }
-.container { padding:10px; max-width: 600px; margin: auto; }
-.card { background:white; border-radius:12px; padding:15px; margin:10px 0; box-shadow:0 2px 8px rgba(0,0,0,0.1); }
-button { width:100%; padding:12px; margin:5px 0; border:none; border-radius:8px; background:#4CAF50; color:white; }
-.hidden { display:none; }
-</style>
-</head>
-
-<body>
-<div class="container">
-<h2>家計簿アプリ（クラウド同期）</h2>
-
-<div id="loginArea" class="card">
-<button onclick="login()">Googleでログイン</button>
-</div>
-
-<div id="home" class="card hidden">
-<button onclick="show('plan')">支出予定</button>
-<button onclick="show('result')">支出結果</button>
-<button onclick="show('monthly')">月集計</button>
-<button onclick="logout()">ログアウト</button>
-</div>
-
-<div id="plan" class="card hidden">
-<input type="number" id="planAmount" placeholder="金額">
-<input type="text" id="planPurpose" placeholder="用途">
-<select id="planCategory">
-<option>園芸</option><option>遊興</option><option>家計</option><option>その他</option>
-</select>
-<button onclick="savePlan()">保存</button>
-</div>
-
-<div id="result" class="card hidden">
-<input type="number" id="resultAmount" placeholder="金額">
-<input type="text" id="resultPurpose" placeholder="用途">
-<select id="resultCategory">
-<option>園芸</option><option>遊興</option><option>家計</option><option>その他</option>
-</select>
-<button onclick="saveResult()">保存</button>
-</div>
-
-<div id="monthly" class="card hidden">
-<input type="month" id="monthlyMonth">
-<button onclick="calcMonthly()">表示</button>
-<canvas id="chart"></canvas>
-<div id="monthlyResult"></div>
-</div>
-
-</div>
-
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
-// 🔴ここを自分のFirebaseに置き換える
+// 🔥 あなたの設定に置き換える
 const firebaseConfig = {
     apiKey: "AIzaSyB9Phxm6u2o8z-ea7qAJqyqj9zTd1R1gAI",
     authDomain: "k2-kakeibo.firebaseapp.com",
@@ -71,113 +21,146 @@ const firebaseConfig = {
     messagingSenderId: "750885231235",
     appId: "1:750885231235:web:96c9a3a2366b25bf7159b6",
     measurementId: "G-L67LWYN5LF"
+
 };
 
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const auth = getAuth(app);
+const auth = getAuth();
+const db = getFirestore();
 
-let userId = null;
-let data = {};
-let chart;
+let user = null;
+
+// ログイン状態監視
+onAuthStateChanged(auth, (u) => {
+  if(u){
+    user = u;
+    document.getElementById("loginArea").style.display="none";
+    document.getElementById("home").style.display="block";
+  }
+});
 
 // ログイン
 window.login = async function(){
   const provider = new GoogleAuthProvider();
-  const result = await signInWithPopup(auth, provider);
-  userId = result.user.uid;
+  await signInWithPopup(auth, provider);
 };
 
 // ログアウト
 window.logout = function(){
   signOut(auth);
+  location.reload();
 };
 
-// ログイン状態監視
-onAuthStateChanged(auth, async (user) => {
-  if(user){
-    userId = user.uid;
-    document.getElementById("loginArea").classList.add("hidden");
-    document.getElementById("home").classList.remove("hidden");
-    await loadData();
-  } else {
-    document.getElementById("loginArea").classList.remove("hidden");
-    document.getElementById("home").classList.add("hidden");
-  }
-});
-
-// Firestoreから読み込み
-async function loadData(){
-  const ref = doc(db, "kakeibo", userId);
+// データ取得
+async function getData(){
+  const ref = doc(db, "users", user.uid);
   const snap = await getDoc(ref);
-  data = snap.exists() ? snap.data() : {};
+  return snap.exists() ? snap.data() : {};
 }
 
-// Firestoreへ保存
-async function saveData(){
-  await setDoc(doc(db, "kakeibo", userId), data);
+// データ保存
+async function saveData(data){
+  const ref = doc(db, "users", user.uid);
+  await setDoc(ref, data);
 }
 
 // 今日キー
 function todayKey(){
-  let d=new Date();
-  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,'0')+"-"+String(d.getDate()).padStart(2,'0');
+  let d = new Date();
+  return d.toISOString().split("T")[0];
 }
 
-// 画面切替
-window.show = function(id){
-  document.querySelectorAll('.card').forEach(d=>d.classList.add('hidden'));
-  document.getElementById(id).classList.remove('hidden');
-};
-
-// 保存
+// 保存（予定）
 window.savePlan = async function(){
+  let d = await getData();
   let k = todayKey();
-  data[k] = data[k] || {};
-  data[k].plan = {
+  d[k] = d[k] || {};
+  d[k].plan = {
     amount: planAmount.value,
     purpose: planPurpose.value,
     category: planCategory.value
   };
-  await saveData();
-  alert("保存");
+  await saveData(d);
+  alert("保存しました");
 };
 
+// 保存（結果）
 window.saveResult = async function(){
+  let d = await getData();
   let k = todayKey();
-  data[k] = data[k] || {};
-  data[k].result = {
+  d[k] = d[k] || {};
+  d[k].result = {
     amount: resultAmount.value,
     purpose: resultPurpose.value,
-    category: resultCategory.value
+    category: resultCategory.value,
+    reflection: reflection.value
   };
-  await saveData();
-  alert("保存");
+  await saveData(d);
+  alert("保存しました");
 };
 
-// 月集計
-window.calcMonthly = function(){
-  let m = monthlyMonth.value;
-  let cat = {"園芸":0,"遊興":0,"家計":0,"その他":0};
-  let total=0;
-
-  for(let k in data){
-    if(k.startsWith(m) && data[k].result){
-      let r = data[k].result;
-      total += Number(r.amount||0);
-      cat[r.category]+=Number(r.amount||0);
-    }
-  }
-
-  monthlyResult.innerText = "合計:"+total;
-
-  if(chart) chart.destroy();
-  chart = new Chart(document.getElementById("chart"),{
-    type:"pie",
-    data:{labels:Object.keys(cat),datasets:[{data:Object.values(cat)}]}
+// 収入
+window.saveIncome = async function(){
+  let d = await getData();
+  let k = incomeMonth.value;
+  d[k] = d[k] || {};
+  d[k].income = d[k].income || [];
+  d[k].income.push({
+    amount: incomeAmount.value,
+    type: incomeType.value
   });
+  await saveData(d);
+  alert("保存しました");
 };
 
 </script>
+
+<style>
+body { font-family: sans-serif; background:#f5f5f5; margin:0; }
+.container { padding:10px; max-width: 600px; margin: auto; }
+.card { background:white; border-radius:12px; padding:15px; margin:10px 0; box-shadow:0 2px 8px rgba(0,0,0,0.1); }
+button { width:100%; padding:12px; margin:5px 0; border:none; border-radius:8px; background:#4CAF50; color:white; }
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<h2>家計簿（クラウド版）</h2>
+
+<!-- ログイン -->
+<div id="loginArea" class="card">
+<button onclick="login()">Googleでログイン</button>
+</div>
+
+<!-- ホーム -->
+<div id="home" class="card" style="display:none;">
+<button onclick="savePlan()">支出予定保存</button>
+<button onclick="saveResult()">支出結果保存</button>
+<button onclick="saveIncome()">収入保存</button>
+<button onclick="logout()">ログアウト</button>
+</div>
+
+<!-- 入力 -->
+<input id="planAmount" placeholder="予定金額">
+<input id="planPurpose" placeholder="用途">
+<select id="planCategory">
+<option>園芸</option><option>遊興</option><option>家計</option><option>その他</option>
+</select>
+
+<input id="resultAmount" placeholder="結果金額">
+<input id="resultPurpose" placeholder="用途">
+<select id="resultCategory">
+<option>園芸</option><option>遊興</option><option>家計</option><option>その他</option>
+</select>
+<textarea id="reflection"></textarea>
+
+<input id="incomeMonth" type="month">
+<input id="incomeAmount" placeholder="収入">
+<select id="incomeType">
+<option>給与</option><option>副業</option>
+</select>
+
+</div>
 </body>
 </html>

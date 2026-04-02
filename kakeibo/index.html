@@ -137,9 +137,8 @@ const db = firebase.firestore();
 const provider = new firebase.auth.GoogleAuthProvider();
 
 let currentUser = null;
-let cachedData = {}; // Firestoreのデータをメモリに保持する用
+let cachedData = {}; 
 
-// --- 認証状態の監視 ---
 auth.onAuthStateChanged(async (user) => {
   if (user) {
     currentUser = user;
@@ -164,7 +163,6 @@ function logout() {
   auth.signOut().then(() => { show('home'); });
 }
 
-// --- Firestoreデータの取得・保存 ---
 async function loadDataFromFirebase() {
   if (!currentUser) return;
   try {
@@ -181,12 +179,10 @@ async function loadDataFromFirebase() {
   }
 }
 
-// 既存の取得関数をキャッシュ読み込みに変更（同期処理のまま）
 function getData(){ 
   return cachedData; 
 }
 
-// 既存の保存関数をキャッシュ更新＋Firestore保存に変更（非同期書き込み）
 async function saveData(d){ 
   cachedData = d; 
   if (currentUser) {
@@ -201,7 +197,6 @@ async function saveData(d){
   }
 }
 
-// --- 以下、既存のアプリロジック ---
 let chart;
 
 function show(id){ 
@@ -238,7 +233,21 @@ function savePlan(){
 function saveResult(){ 
   let d = getData(), k = todayKey(); 
   d[k] = d[k] || {}; 
-  d[k].result = {amount: resultAmount.value, purpose: resultPurpose.value, category: resultCategory.value, reflection: reflection.value}; 
+  
+  // 【互換性対応】既存のオブジェクト形式のデータを配列に変換
+  if (d[k].result && !Array.isArray(d[k].result)) {
+    d[k].result = [d[k].result];
+  }
+  
+  d[k].result = d[k].result || []; 
+  // 配列に新しく入力されたデータを追加（累積）
+  d[k].result.push({
+    amount: resultAmount.value, 
+    purpose: resultPurpose.value, 
+    category: resultCategory.value, 
+    reflection: reflection.value
+  }); 
+
   saveData(d); 
   alert('結果を保存しました'); 
   resultAmount.value=''; resultPurpose.value=''; reflection.value='';
@@ -269,13 +278,15 @@ function calcMonthly(){
 
   for(let k in d){ 
     if(k.startsWith(m) && d[k].result){ 
-      let r = d[k].result; 
-      totalExpense += Number(r.amount || 0); 
-      if(cat[r.category] !== undefined) {
-        cat[r.category] += Number(r.amount || 0); 
-      } else {
-        cat["その他"] += Number(r.amount || 0);
-      }
+      let results = Array.isArray(d[k].result) ? d[k].result : [d[k].result];
+      results.forEach(r => {
+        totalExpense += Number(r.amount || 0); 
+        if(cat[r.category] !== undefined) {
+          cat[r.category] += Number(r.amount || 0); 
+        } else {
+          cat["その他"] += Number(r.amount || 0);
+        }
+      });
     }
   } 
 
@@ -321,12 +332,18 @@ function loadHistory(){
   } else {
     keys.forEach(k => {
       let p = d[k].plan;
-      let r = d[k].result;
+      let results = d[k].result ? (Array.isArray(d[k].result) ? d[k].result : [d[k].result]) : [];
+      
+      let resultText = '未入力';
+      if (results.length > 0) {
+         resultText = results.map(r => `${r.amount}円 / ${r.purpose} / ${r.category}`).join('<br><span style="color:#2196F3;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[追加]</span> ');
+      }
+
       html += `<div class="history-item">
         <strong>${k}</strong><br>
         <span style="color:#757575; font-size:14px;">
           [予定] ${p ? (p.amount + '円 / ' + p.purpose + ' / ' + p.category) : '未入力'} <br>
-          [結果] ${r ? (r.amount + '円 / ' + r.purpose + ' / ' + r.category) : '未入力'}
+          [結果] ${resultText}
         </span>
       </div>`;
     });
@@ -341,7 +358,7 @@ function loadDay(){
   let html = ''; 
   if(d[k]){ 
     let p = d[k].plan || {};
-    let r = d[k].result || {};
+    let results = d[k].result ? (Array.isArray(d[k].result) ? d[k].result : [d[k].result]) : [];
     
     html += `<h4>予定</h4>`;
     html += `<input type="number" id="editPlanAmount" value="${p.amount || ''}" placeholder="金額">`;
@@ -354,14 +371,22 @@ function loadDay(){
     </select>`;
 
     html += `<h4>結果</h4>`;
-    html += `<input type="number" id="editResultAmount" value="${r.amount || ''}" placeholder="金額">`;
-    html += `<input type="text" id="editResultPurpose" value="${r.purpose || ''}" placeholder="用途">`;
-    html += `<select id="editResultCategory">
-      <option ${r.category==='園芸'?'selected':''}>園芸</option>
-      <option ${r.category==='遊興'?'selected':''}>遊興</option>
-      <option ${r.category==='家計'?'selected':''}>家計</option>
-      <option ${r.category==='その他'?'selected':''}>その他</option>
-    </select>`;
+    if (results.length > 0) {
+      results.forEach((r, idx) => {
+        html += `<div style="margin-bottom:10px; padding-bottom:10px; border-bottom:1px dashed #ccc;">`;
+        html += `<input type="number" id="editResultAmount_${idx}" value="${r.amount || ''}" placeholder="金額">`;
+        html += `<input type="text" id="editResultPurpose_${idx}" value="${r.purpose || ''}" placeholder="用途">`;
+        html += `<select id="editResultCategory_${idx}">
+          <option ${r.category==='園芸'?'selected':''}>園芸</option>
+          <option ${r.category==='遊興'?'selected':''}>遊興</option>
+          <option ${r.category==='家計'?'selected':''}>家計</option>
+          <option ${r.category==='その他'?'selected':''}>その他</option>
+        </select>`;
+        html += `</div>`;
+      });
+    } else {
+      html += `<p>結果のデータがありません。</p>`;
+    }
 
     html += `<button onclick="saveEdit('${k}')" style="margin-top:15px;">上書き保存</button>`;
   } else {
@@ -381,11 +406,18 @@ function saveEdit(k){
     d[k].plan.category = document.getElementById('editPlanCategory').value;
   }
   
-  if(document.getElementById('editResultAmount')){
-    d[k].result = d[k].result || {};
-    d[k].result.amount = document.getElementById('editResultAmount').value;
-    d[k].result.purpose = document.getElementById('editResultPurpose').value;
-    d[k].result.category = document.getElementById('editResultCategory').value;
+  // 複数結果の保存対応
+  if(d[k].result){
+    let results = Array.isArray(d[k].result) ? d[k].result : [d[k].result];
+    results.forEach((r, idx) => {
+      let amountEl = document.getElementById(`editResultAmount_${idx}`);
+      if(amountEl){
+        r.amount = amountEl.value;
+        r.purpose = document.getElementById(`editResultPurpose_${idx}`).value;
+        r.category = document.getElementById(`editResultCategory_${idx}`).value;
+      }
+    });
+    d[k].result = results;
   }
   
   saveData(d); 
@@ -423,15 +455,25 @@ function exportCSV(){
   let keys = Object.keys(d).filter(k => k.match(/^\d{4}-\d{2}-\d{2}$/)).sort();
   
   keys.forEach(k => { 
-    rows.push([
-      k, 
-      d[k].plan?.amount || '', 
-      d[k].plan?.purpose || '', 
-      d[k].result?.amount || '', 
-      d[k].result?.purpose || '', 
-      d[k].result?.category || '', 
-      d[k].result?.reflection || ''
-    ]); 
+    let p = d[k].plan || {};
+    let results = d[k].result ? (Array.isArray(d[k].result) ? d[k].result : [d[k].result]) : [{}];
+    
+    // 1日に複数の結果がある場合は、結果の数だけ行を分ける
+    results.forEach((r, index) => {
+      // 予定データは重複を防ぐため、最初の行のみに出力
+      let planAmount = index === 0 ? (p.amount || '') : '';
+      let planPurpose = index === 0 ? (p.purpose || '') : '';
+      
+      rows.push([
+        k, 
+        planAmount, 
+        planPurpose, 
+        r.amount || '', 
+        r.purpose || '', 
+        r.category || '', 
+        r.reflection || ''
+      ]); 
+    });
   }); 
   
   // システム間の互換性を優先し、BOMなしのUTF-8で出力

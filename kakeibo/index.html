@@ -34,7 +34,7 @@ h4 { margin: 10px 0 5px 0; color: #333; }
     <button id="logoutBtn" onclick="logout()" class="hidden" style="background:#f44336;">ログアウト</button>
   </div>
 
-<button onclick="show('plan')">本日の支出予定</button>
+<button onclick="show('plan')">今日の支出予定</button>
 <button onclick="show('result')">本日の支出結果</button>
 <button onclick="show('income')">月の収入</button>
 <button onclick="show('monthly')">月の集計（収支確認）</button>
@@ -52,7 +52,7 @@ h4 { margin: 10px 0 5px 0; color: #333; }
 <select id="planCategory">
 <option>園芸</option><option>遊興</option><option>家計</option><option>その他</option>
 </select>
-<button onclick="savePlan()">保存</button>
+<button onclick="savePlan()">追加して保存</button>
 <button onclick="back()" style="background:#757575;">戻る</button>
 </div>
 
@@ -65,7 +65,7 @@ h4 { margin: 10px 0 5px 0; color: #333; }
 <option>園芸</option><option>遊興</option><option>家計</option><option>その他</option>
 </select>
 <textarea id="reflection" placeholder="振り返り"></textarea>
-<button onclick="saveResult()">保存</button>
+<button onclick="saveResult()">追加して保存</button>
 <button onclick="back()" style="background:#757575;">戻る</button>
 </div>
 
@@ -224,7 +224,20 @@ function todayKey(){
 function savePlan(){ 
   let d = getData(), k = todayKey(); 
   d[k] = d[k] || {}; 
-  d[k].plan = {amount: planAmount.value, purpose: planPurpose.value, category: planCategory.value}; 
+  
+  // 【互換性対応】既存のオブジェクト形式のデータを配列に変換
+  if (d[k].plan && !Array.isArray(d[k].plan)) {
+    d[k].plan = [d[k].plan];
+  }
+
+  d[k].plan = d[k].plan || []; 
+  // 配列に新しく入力された予定データを追加（累積）
+  d[k].plan.push({
+    amount: planAmount.value, 
+    purpose: planPurpose.value, 
+    category: planCategory.value
+  }); 
+
   saveData(d); 
   alert('予定を保存しました'); 
   planAmount.value=''; planPurpose.value='';
@@ -234,13 +247,11 @@ function saveResult(){
   let d = getData(), k = todayKey(); 
   d[k] = d[k] || {}; 
   
-  // 【互換性対応】既存のオブジェクト形式のデータを配列に変換
   if (d[k].result && !Array.isArray(d[k].result)) {
     d[k].result = [d[k].result];
   }
   
   d[k].result = d[k].result || []; 
-  // 配列に新しく入力されたデータを追加（累積）
   d[k].result.push({
     amount: resultAmount.value, 
     purpose: resultPurpose.value, 
@@ -331,9 +342,14 @@ function loadHistory(){
     html = '<p>データがありません</p>';
   } else {
     keys.forEach(k => {
-      let p = d[k].plan;
+      let plans = d[k].plan ? (Array.isArray(d[k].plan) ? d[k].plan : [d[k].plan]) : [];
       let results = d[k].result ? (Array.isArray(d[k].result) ? d[k].result : [d[k].result]) : [];
       
+      let planText = '未入力';
+      if (plans.length > 0) {
+         planText = plans.map(p => `${p.amount}円 / ${p.purpose} / ${p.category}`).join('<br><span style="color:#4CAF50;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[追加]</span> ');
+      }
+
       let resultText = '未入力';
       if (results.length > 0) {
          resultText = results.map(r => `${r.amount}円 / ${r.purpose} / ${r.category}`).join('<br><span style="color:#2196F3;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[追加]</span> ');
@@ -342,7 +358,7 @@ function loadHistory(){
       html += `<div class="history-item">
         <strong>${k}</strong><br>
         <span style="color:#757575; font-size:14px;">
-          [予定] ${p ? (p.amount + '円 / ' + p.purpose + ' / ' + p.category) : '未入力'} <br>
+          [予定] ${planText} <br>
           [結果] ${resultText}
         </span>
       </div>`;
@@ -357,18 +373,26 @@ function loadDay(){
   
   let html = ''; 
   if(d[k]){ 
-    let p = d[k].plan || {};
+    let plans = d[k].plan ? (Array.isArray(d[k].plan) ? d[k].plan : [d[k].plan]) : [];
     let results = d[k].result ? (Array.isArray(d[k].result) ? d[k].result : [d[k].result]) : [];
     
     html += `<h4>予定</h4>`;
-    html += `<input type="number" id="editPlanAmount" value="${p.amount || ''}" placeholder="金額">`;
-    html += `<input type="text" id="editPlanPurpose" value="${p.purpose || ''}" placeholder="用途">`;
-    html += `<select id="editPlanCategory">
-      <option ${p.category==='園芸'?'selected':''}>園芸</option>
-      <option ${p.category==='遊興'?'selected':''}>遊興</option>
-      <option ${p.category==='家計'?'selected':''}>家計</option>
-      <option ${p.category==='その他'?'selected':''}>その他</option>
-    </select>`;
+    if (plans.length > 0) {
+      plans.forEach((p, idx) => {
+        html += `<div style="margin-bottom:10px; padding-bottom:10px; border-bottom:1px dashed #ccc;">`;
+        html += `<input type="number" id="editPlanAmount_${idx}" value="${p.amount || ''}" placeholder="金額">`;
+        html += `<input type="text" id="editPlanPurpose_${idx}" value="${p.purpose || ''}" placeholder="用途">`;
+        html += `<select id="editPlanCategory_${idx}">
+          <option ${p.category==='園芸'?'selected':''}>園芸</option>
+          <option ${p.category==='遊興'?'selected':''}>遊興</option>
+          <option ${p.category==='家計'?'selected':''}>家計</option>
+          <option ${p.category==='その他'?'selected':''}>その他</option>
+        </select>`;
+        html += `</div>`;
+      });
+    } else {
+      html += `<p>予定のデータがありません。</p>`;
+    }
 
     html += `<h4>結果</h4>`;
     if (results.length > 0) {
@@ -399,14 +423,19 @@ function saveEdit(k){
   let d = getData(); 
   if(!d[k]) d[k] = {};
   
-  if(document.getElementById('editPlanAmount')){
-    d[k].plan = d[k].plan || {};
-    d[k].plan.amount = document.getElementById('editPlanAmount').value;
-    d[k].plan.purpose = document.getElementById('editPlanPurpose').value;
-    d[k].plan.category = document.getElementById('editPlanCategory').value;
+  if(d[k].plan){
+    let plans = Array.isArray(d[k].plan) ? d[k].plan : [d[k].plan];
+    plans.forEach((p, idx) => {
+      let amountEl = document.getElementById(`editPlanAmount_${idx}`);
+      if(amountEl){
+        p.amount = amountEl.value;
+        p.purpose = document.getElementById(`editPlanPurpose_${idx}`).value;
+        p.category = document.getElementById(`editPlanCategory_${idx}`).value;
+      }
+    });
+    d[k].plan = plans;
   }
   
-  // 複数結果の保存対応
   if(d[k].result){
     let results = Array.isArray(d[k].result) ? d[k].result : [d[k].result];
     results.forEach((r, idx) => {
@@ -450,30 +479,33 @@ function editIncomeVal(k, i, val){
 
 function exportCSV(){ 
   let d = getData(); 
-  let rows = [['日付','予定金額','予定用途','結果金額','結果用途','分類','振り返り']]; 
+  let rows = [['日付','予定金額','予定用途','予定分類','結果金額','結果用途','結果分類','振り返り']]; 
   
   let keys = Object.keys(d).filter(k => k.match(/^\d{4}-\d{2}-\d{2}$/)).sort();
   
   keys.forEach(k => { 
-    let p = d[k].plan || {};
-    let results = d[k].result ? (Array.isArray(d[k].result) ? d[k].result : [d[k].result]) : [{}];
+    let plans = d[k].plan ? (Array.isArray(d[k].plan) ? d[k].plan : [d[k].plan]) : [];
+    let results = d[k].result ? (Array.isArray(d[k].result) ? d[k].result : [d[k].result]) : [];
     
-    // 1日に複数の結果がある場合は、結果の数だけ行を分ける
-    results.forEach((r, index) => {
-      // 予定データは重複を防ぐため、最初の行のみに出力
-      let planAmount = index === 0 ? (p.amount || '') : '';
-      let planPurpose = index === 0 ? (p.purpose || '') : '';
+    // 予定と結果の多い方の行数に合わせて出力
+    let maxLen = Math.max(plans.length, results.length);
+    if(maxLen === 0) maxLen = 1;
+    
+    for(let i = 0; i < maxLen; i++){
+      let p = plans[i] || {};
+      let r = results[i] || {};
       
       rows.push([
         k, 
-        planAmount, 
-        planPurpose, 
+        p.amount || '', 
+        p.purpose || '', 
+        p.category || '',
         r.amount || '', 
         r.purpose || '', 
         r.category || '', 
         r.reflection || ''
       ]); 
-    });
+    }
   }); 
   
   // システム間の互換性を優先し、BOMなしのUTF-8で出力

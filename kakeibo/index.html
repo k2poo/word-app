@@ -38,6 +38,7 @@ h4 { margin: 10px 0 5px 0; color: #333; }
 <button onclick="show('result')">本日の支出結果</button>
 <button onclick="show('income')">月の収入</button>
 <button onclick="show('monthly')">月の集計（収支確認）</button>
+<button onclick="show('yearly')">年の集計（収支確認）</button>
 <button onclick="show('history')">履歴一覧（日別リスト）</button>
 <button onclick="show('editDay')">日付編集</button>
 <button onclick="show('editMonth')">収入修正</button>
@@ -90,6 +91,19 @@ h4 { margin: 10px 0 5px 0; color: #333; }
 <button onclick="calcMonthly()">表示</button>
 <div id="monthlyResult" style="margin: 15px 0; font-size: 18px;"></div>
 <canvas id="chart"></canvas>
+<button onclick="back()" style="background:#757575;">戻る</button>
+</div>
+
+<div id="yearly" class="card hidden">
+<h3>年別集計</h3>
+<input type="number" id="yearlyYear" placeholder="西暦を入力 (例: 2026)">
+<select id="yearlyChartType">
+<option value="pie">円グラフ</option>
+<option value="bar">棒グラフ</option>
+</select>
+<button onclick="calcYearly()">表示</button>
+<div id="yearlyResult" style="margin: 15px 0; font-size: 18px;"></div>
+<canvas id="yearlyChartCanvas"></canvas>
 <button onclick="back()" style="background:#757575;">戻る</button>
 </div>
 
@@ -198,6 +212,7 @@ async function saveData(d){
 }
 
 let chart;
+let yChart; // 年間集計用グラフ変数
 
 function show(id){ 
   document.querySelectorAll('.card').forEach(d => d.classList.add('hidden')); 
@@ -206,6 +221,12 @@ function show(id){
   if(id === 'plan') setDate('planDate'); 
   if(id === 'result') setDate('resultDate'); 
   if(id === 'history') loadHistory();
+  if(id === 'yearly') {
+    // 年集計画面を開いたとき、デフォルトで現在の年をセット
+    if(!document.getElementById('yearlyYear').value) {
+      document.getElementById('yearlyYear').value = new Date().getFullYear();
+    }
+  }
 }
 
 function back(){ show('home'); }
@@ -225,13 +246,11 @@ function savePlan(){
   let d = getData(), k = todayKey(); 
   d[k] = d[k] || {}; 
   
-  // 【互換性対応】既存のオブジェクト形式のデータを配列に変換
   if (d[k].plan && !Array.isArray(d[k].plan)) {
     d[k].plan = [d[k].plan];
   }
 
   d[k].plan = d[k].plan || []; 
-  // 配列に新しく入力された予定データを追加（累積）
   d[k].plan.push({
     amount: planAmount.value, 
     purpose: planPurpose.value, 
@@ -321,6 +340,69 @@ function drawChart(cat){
   let ctx = document.getElementById('chart'); 
   if(chart) chart.destroy(); 
   chart = new Chart(ctx, {
+    type: type, 
+    data: {
+      labels: Object.keys(cat), 
+      datasets: [{
+        label: '支出カテゴリ別',
+        data: Object.values(cat),
+        backgroundColor: ['#4CAF50', '#FF9800', '#2196F3', '#9E9E9E']
+      }]
+    }
+  }); 
+}
+
+function calcYearly(){ 
+  let d = getData(), y = document.getElementById('yearlyYear').value; 
+  if(!y) return alert('年を入力してください');
+
+  let cat = {"園芸":0, "遊興":0, "家計":0, "その他":0}; 
+  let totalExpense = 0; 
+  let totalIncome = 0;
+
+  for(let k in d){ 
+    // 年（YYYY-）から始まるキーを対象に集計
+    if(k.startsWith(y + '-')) {
+      // 収入の合算
+      if(d[k].income) {
+        d[k].income.forEach(i => totalIncome += Number(i.amount));
+      }
+      
+      // 支出の合算
+      if(d[k].result){ 
+        let results = Array.isArray(d[k].result) ? d[k].result : [d[k].result];
+        results.forEach(r => {
+          totalExpense += Number(r.amount || 0); 
+          if(cat[r.category] !== undefined) {
+            cat[r.category] += Number(r.amount || 0); 
+          } else {
+            cat["その他"] += Number(r.amount || 0);
+          }
+        });
+      }
+    }
+  } 
+
+  let balance = totalIncome - totalExpense;
+  let balanceColor = balance >= 0 ? '#1976D2' : '#D32F2F'; 
+  let balanceText = balance >= 0 ? '黒字' : '赤字';
+
+  document.getElementById('yearlyResult').innerHTML = `
+    <div>収入合計: <strong>${totalIncome.toLocaleString()}円</strong></div>
+    <div>支出合計: <strong>${totalExpense.toLocaleString()}円</strong></div>
+    <div style="color:${balanceColor}; margin-top:5px;">
+      収支バランス: <strong>${balance.toLocaleString()}円 (${balanceText})</strong>
+    </div>
+  `;
+
+  drawYearlyChart(cat); 
+}
+
+function drawYearlyChart(cat){ 
+  let type = document.getElementById('yearlyChartType').value; 
+  let ctx = document.getElementById('yearlyChartCanvas'); 
+  if(yChart) yChart.destroy(); 
+  yChart = new Chart(ctx, {
     type: type, 
     data: {
       labels: Object.keys(cat), 

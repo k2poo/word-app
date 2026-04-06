@@ -454,50 +454,64 @@ function loadDay(){
   if(!k) return alert('日付を選択してください');
   
   let html = ''; 
-  if(d[k]){ 
-    let plans = d[k].plan ? (Array.isArray(d[k].plan) ? d[k].plan : [d[k].plan]) : [];
-    let results = d[k].result ? (Array.isArray(d[k].result) ? d[k].result : [d[k].result]) : [];
-    
-    html += `<h4>予定</h4>`;
-    if (plans.length > 0) {
-      plans.forEach((p, idx) => {
-        html += `<div style="margin-bottom:10px; padding-bottom:10px; border-bottom:1px dashed #ccc;">`;
-        html += `<input type="number" id="editPlanAmount_${idx}" value="${p.amount || ''}" placeholder="金額">`;
-        html += `<input type="text" id="editPlanPurpose_${idx}" value="${p.purpose || ''}" placeholder="用途">`;
-        html += `<select id="editPlanCategory_${idx}">
-          <option ${p.category==='園芸'?'selected':''}>園芸</option>
-          <option ${p.category==='遊興'?'selected':''}>遊興</option>
-          <option ${p.category==='家計'?'selected':''}>家計</option>
-          <option ${p.category==='その他'?'selected':''}>その他</option>
-        </select>`;
-        html += `</div>`;
-      });
-    } else {
-      html += `<p>予定のデータがありません。</p>`;
-    }
+  let plans = (d[k] && d[k].plan) ? (Array.isArray(d[k].plan) ? d[k].plan : [d[k].plan]) : [];
+  let results = (d[k] && d[k].result) ? (Array.isArray(d[k].result) ? d[k].result : [d[k].result]) : [];
+  
+  // === 予定セクション ===
+  html += `<h4>予定</h4>`;
+  plans.forEach((p, idx) => {
+    html += `<div style="margin-bottom:10px; padding-bottom:10px; border-bottom:1px dashed #ccc;">`;
+    html += `<input type="number" id="editPlanAmount_${idx}" value="${p.amount || ''}" placeholder="金額">`;
+    html += `<input type="text" id="editPlanPurpose_${idx}" value="${p.purpose || ''}" placeholder="用途">`;
+    html += `<select id="editPlanCategory_${idx}">
+      <option ${p.category==='園芸'?'selected':''}>園芸</option>
+      <option ${p.category==='遊興'?'selected':''}>遊興</option>
+      <option ${p.category==='家計'?'selected':''}>家計</option>
+      <option ${p.category==='その他'?'selected':''}>その他</option>
+    </select>`;
+    html += `</div>`;
+  });
 
-    html += `<h4>結果</h4>`;
-    if (results.length > 0) {
-      results.forEach((r, idx) => {
-        html += `<div style="margin-bottom:10px; padding-bottom:10px; border-bottom:1px dashed #ccc;">`;
-        html += `<input type="number" id="editResultAmount_${idx}" value="${r.amount || ''}" placeholder="金額">`;
-        html += `<input type="text" id="editResultPurpose_${idx}" value="${r.purpose || ''}" placeholder="用途">`;
-        html += `<select id="editResultCategory_${idx}">
-          <option ${r.category==='園芸'?'selected':''}>園芸</option>
-          <option ${r.category==='遊興'?'selected':''}>遊興</option>
-          <option ${r.category==='家計'?'selected':''}>家計</option>
-          <option ${r.category==='その他'?'selected':''}>その他</option>
-        </select>`;
-        html += `</div>`;
-      });
-    } else {
-      html += `<p>結果のデータがありません。</p>`;
-    }
+  // 予定の新規追加枠
+  let nextPlanIdx = plans.length;
+  html += `<div style="margin-bottom:10px; padding:10px; border-radius:8px; background-color:#e8f5e9;">`;
+  html += `<div style="font-size:13px; color:#2e7d32; font-weight:bold; margin-bottom:5px;">＋ 新しい予定を追加</div>`;
+  html += `<input type="number" id="editPlanAmount_${nextPlanIdx}" placeholder="金額">`;
+  html += `<input type="text" id="editPlanPurpose_${nextPlanIdx}" placeholder="用途">`;
+  html += `<select id="editPlanCategory_${nextPlanIdx}">
+    <option>園芸</option><option>遊興</option><option>家計</option><option>その他</option>
+  </select>`;
+  html += `</div>`;
 
-    html += `<button onclick="saveEdit('${k}')" style="margin-top:15px;">上書き保存</button>`;
-  } else {
-    html = '<p>指定した日付のデータがありません。</p>';
-  }
+
+  // === 結果セクション ===
+  html += `<h4>結果</h4>`;
+  results.forEach((r, idx) => {
+    html += `<div style="margin-bottom:10px; padding-bottom:10px; border-bottom:1px dashed #ccc;">`;
+    html += `<input type="number" id="editResultAmount_${idx}" value="${r.amount || ''}" placeholder="金額">`;
+    html += `<input type="text" id="editResultPurpose_${idx}" value="${r.purpose || ''}" placeholder="用途">`;
+    html += `<select id="editResultCategory_${idx}">
+      <option ${r.category==='園芸'?'selected':''}>園芸</option>
+      <option ${r.category==='遊興'?'selected':''}>遊興</option>
+      <option ${r.category==='家計'?'selected':''}>家計</option>
+      <option ${r.category==='その他'?'selected':''}>その他</option>
+    </select>`;
+    html += `</div>`;
+  });
+
+  // 結果の新規追加枠
+  let nextResultIdx = results.length;
+  html += `<div style="margin-bottom:10px; padding:10px; border-radius:8px; background-color:#e3f2fd;">`;
+  html += `<div style="font-size:13px; color:#1565c0; font-weight:bold; margin-bottom:5px;">＋ 新しい結果を追加</div>`;
+  html += `<input type="number" id="editResultAmount_${nextResultIdx}" placeholder="金額">`;
+  html += `<input type="text" id="editResultPurpose_${nextResultIdx}" placeholder="用途">`;
+  html += `<select id="editResultCategory_${nextResultIdx}">
+    <option>園芸</option><option>遊興</option><option>家計</option><option>その他</option>
+  </select>`;
+  html += `</div>`;
+
+  html += `<button onclick="saveEdit('${k}')" style="margin-top:15px; background-color:#FF9800;">上書き・追加保存</button>`;
+  
   editArea.innerHTML = html; 
 }
 
@@ -505,34 +519,50 @@ function saveEdit(k){
   let d = getData(); 
   if(!d[k]) d[k] = {};
   
-  if(d[k].plan){
-    let plans = Array.isArray(d[k].plan) ? d[k].plan : [d[k].plan];
-    plans.forEach((p, idx) => {
-      let amountEl = document.getElementById(`editPlanAmount_${idx}`);
-      if(amountEl){
-        p.amount = amountEl.value;
-        p.purpose = document.getElementById(`editPlanPurpose_${idx}`).value;
-        p.category = document.getElementById(`editPlanCategory_${idx}`).value;
-      }
-    });
-    d[k].plan = plans;
+  // 予定データの収集
+  let newPlans = [];
+  let i = 0;
+  while(document.getElementById(`editPlanAmount_${i}`)) {
+    let amount = document.getElementById(`editPlanAmount_${i}`).value;
+    let purpose = document.getElementById(`editPlanPurpose_${i}`).value;
+    let category = document.getElementById(`editPlanCategory_${i}`).value;
+    
+    // 金額か用途のいずれかが入力されていれば保存
+    if(amount !== '' || purpose !== '') {
+      newPlans.push({ amount: amount, purpose: purpose, category: category });
+    }
+    i++;
   }
+  if(newPlans.length > 0) d[k].plan = newPlans;
+  else delete d[k].plan;
   
-  if(d[k].result){
-    let results = Array.isArray(d[k].result) ? d[k].result : [d[k].result];
-    results.forEach((r, idx) => {
-      let amountEl = document.getElementById(`editResultAmount_${idx}`);
-      if(amountEl){
-        r.amount = amountEl.value;
-        r.purpose = document.getElementById(`editResultPurpose_${idx}`).value;
-        r.category = document.getElementById(`editResultCategory_${idx}`).value;
-      }
-    });
-    d[k].result = results;
+  // 結果データの収集
+  let newResults = [];
+  let j = 0;
+  while(document.getElementById(`editResultAmount_${j}`)) {
+    let amount = document.getElementById(`editResultAmount_${j}`).value;
+    let purpose = document.getElementById(`editResultPurpose_${j}`).value;
+    let category = document.getElementById(`editResultCategory_${j}`).value;
+    
+    // 金額か用途のいずれかが入力されていれば保存
+    if(amount !== '' || purpose !== '') {
+      newResults.push({ amount: amount, purpose: purpose, category: category });
+    }
+    j++;
   }
-  
+  if(newResults.length > 0) d[k].result = newResults;
+  else delete d[k].result;
+
+  // もしその日の予定も結果も空になれば、オブジェクトごと消す（任意）
+  if(!d[k].plan && !d[k].result && !d[k].income) {
+    delete d[k];
+  }
+
   saveData(d); 
-  alert('内容を更新しました'); 
+  alert('内容を保存しました'); 
+  
+  // 保存後、再読み込みして最新状態（＋次の新規枠）を表示
+  loadDay();
 }
 
 function loadIncome(){ 

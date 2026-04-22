@@ -21,6 +21,7 @@ input, select, textarea { width:100%; padding:10px; margin:5px 0; border-radius:
 .history-item:last-child { border-bottom: none; }
 h4 { margin: 10px 0 5px 0; color: #333; }
 .auth-area { padding-bottom: 15px; margin-bottom: 15px; border-bottom: 1px solid #eee; text-align: center; }
+.summary-area { margin-bottom: 15px; padding: 15px; background: #e3f2fd; border-radius: 8px; text-align: center; box-shadow: inset 0 1px 3px rgba(0,0,0,0.05); }
 </style>
 </head>
 <body>
@@ -33,6 +34,8 @@ h4 { margin: 10px 0 5px 0; color: #333; }
     <button id="loginBtn" onclick="login()" class="hidden" style="background:#4285F4;">Googleでログイン</button>
     <button id="logoutBtn" onclick="logout()" class="hidden" style="background:#f44336;">ログアウト</button>
   </div>
+
+  <div id="homeSummary" class="summary-area"></div>
 
 <button onclick="show('plan')">今日の支出予定</button>
 <button onclick="show('result')">本日の支出結果</button>
@@ -51,7 +54,7 @@ h4 { margin: 10px 0 5px 0; color: #333; }
 <input type="number" id="planAmount" placeholder="金額">
 <input type="text" id="planPurpose" placeholder="用途">
 <select id="planCategory">
-<option>園芸</option><option>遊興</option><option>家計</option><option>その他</option>
+  <option>食費</option><option>日用品</option><option>家計</option><option>園芸</option><option>遊興</option><option>ガソリン〈エネオス〉</option><option>クレジット〈東邦〉</option><option>クレジット〈PayPay〉</option><option>その他</option>
 </select>
 <button onclick="savePlan()">追加して保存</button>
 <button onclick="back()" style="background:#757575;">戻る</button>
@@ -63,7 +66,7 @@ h4 { margin: 10px 0 5px 0; color: #333; }
 <input type="number" id="resultAmount" placeholder="金額">
 <input type="text" id="resultPurpose" placeholder="用途">
 <select id="resultCategory">
-<option>園芸</option><option>遊興</option><option>家計</option><option>その他</option>
+  <option>食費</option><option>日用品</option><option>家計</option><option>園芸</option><option>遊興</option><option>ガソリン〈エネオス〉</option><option>クレジット〈東邦〉</option><option>クレジット〈PayPay〉</option><option>その他</option>
 </select>
 <textarea id="reflection" placeholder="振り返り"></textarea>
 <button onclick="saveResult()">追加して保存</button>
@@ -132,6 +135,10 @@ h4 { margin: 10px 0 5px 0; color: #333; }
 </div>
 
 <script>
+// --- カテゴリとカラーの定数 ---
+const CATEGORIES = ['食費', '日用品', '家計', '園芸', '遊興', 'ガソリン〈エネオス〉', 'クレジット〈東邦〉', 'クレジット〈PayPay〉', 'その他'];
+const CHART_COLORS = ['#FF6384', '#36A2EB', '#FFCE56', '#4CAF50', '#9C27B0', '#FF9800', '#795548', '#E91E63', '#9E9E9E'];
+
 // --- Firebase 初期化設定 ---
 const firebaseConfig = {
     apiKey: "AIzaSyB9Phxm6u2o8z-ea7qAJqyqj9zTd1R1gAI",
@@ -167,6 +174,7 @@ auth.onAuthStateChanged(async (user) => {
     document.getElementById('loginBtn').classList.remove('hidden');
     document.getElementById('logoutBtn').classList.add('hidden');
   }
+  updateHomeSummary(); // 認証状態変更時にサマリー更新
 });
 
 function login() {
@@ -199,6 +207,7 @@ function getData(){
 
 async function saveData(d){ 
   cachedData = d; 
+  updateHomeSummary(); // データ保存時にサマリー更新
   if (currentUser) {
     try {
       await db.collection('kakeibo_data').doc(currentUser.uid).set({ records: d }, { merge: true });
@@ -211,18 +220,52 @@ async function saveData(d){
   }
 }
 
+// --- ホーム画面サマリー更新関数 ---
+function updateHomeSummary() {
+  let d = getData();
+  let now = new Date();
+  let m = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  
+  let totalIncome = 0;
+  if(d[m] && d[m].income){
+    d[m].income.forEach(i => totalIncome += Number(i.amount || 0));
+  }
+
+  let totalExpense = 0;
+  for(let k in d){
+    if(k.startsWith(m) && d[k].result){
+      let results = Array.isArray(d[k].result) ? d[k].result : [d[k].result];
+      results.forEach(r => {
+        totalExpense += Number(r.amount || 0);
+      });
+    }
+  }
+
+  let balance = totalIncome - totalExpense;
+  let balanceColor = balance >= 0 ? '#000000' : '#D32F2F'; // 黒または赤
+
+  document.getElementById('homeSummary').innerHTML = `
+    <div style="font-size: 14px; color: #555; margin-bottom: 8px; font-weight: bold;">${now.getFullYear()}年${now.getMonth() + 1}月の状況</div>
+    <div style="margin-bottom: 4px;">今月の収入: <strong style="font-size: 18px;">${totalIncome.toLocaleString()}円</strong></div>
+    <div style="margin-bottom: 8px;">今日までの支出: <strong style="font-size: 18px;">${totalExpense.toLocaleString()}円</strong></div>
+    <div style="color:${balanceColor}; margin-top:10px; font-size: 20px; font-weight: bold; border-top: 1px solid #ccc; padding-top: 10px;">
+      差引額: ${balance.toLocaleString()}円
+    </div>
+  `;
+}
+
 let chart;
-let yChart; // 年間集計用グラフ変数
+let yChart; 
 
 function show(id){ 
   document.querySelectorAll('.card').forEach(d => d.classList.add('hidden')); 
   document.getElementById(id).classList.remove('hidden'); 
   
+  if(id === 'home') updateHomeSummary();
   if(id === 'plan') setDate('planDate'); 
   if(id === 'result') setDate('resultDate'); 
   if(id === 'history') loadHistory();
   if(id === 'yearly') {
-    // 年集計画面を開いたとき、デフォルトで現在の年をセット
     if(!document.getElementById('yearlyYear').value) {
       document.getElementById('yearlyYear').value = new Date().getFullYear();
     }
@@ -298,7 +341,8 @@ function calcMonthly(){
   let d = getData(), m = monthlyMonth.value; 
   if(!m) return alert('月を選択してください');
 
-  let cat = {"園芸":0, "遊興":0, "家計":0, "その他":0}; 
+  let cat = {}; 
+  CATEGORIES.forEach(c => cat[c] = 0);
   let totalExpense = 0; 
   let totalIncome = 0;
 
@@ -346,7 +390,7 @@ function drawChart(cat){
       datasets: [{
         label: '支出カテゴリ別',
         data: Object.values(cat),
-        backgroundColor: ['#4CAF50', '#FF9800', '#2196F3', '#9E9E9E']
+        backgroundColor: CHART_COLORS
       }]
     }
   }); 
@@ -356,19 +400,17 @@ function calcYearly(){
   let d = getData(), y = document.getElementById('yearlyYear').value; 
   if(!y) return alert('年を入力してください');
 
-  let cat = {"園芸":0, "遊興":0, "家計":0, "その他":0}; 
+  let cat = {}; 
+  CATEGORIES.forEach(c => cat[c] = 0);
   let totalExpense = 0; 
   let totalIncome = 0;
 
   for(let k in d){ 
-    // 年（YYYY-）から始まるキーを対象に集計
     if(k.startsWith(y + '-')) {
-      // 収入の合算
       if(d[k].income) {
         d[k].income.forEach(i => totalIncome += Number(i.amount));
       }
       
-      // 支出の合算
       if(d[k].result){ 
         let results = Array.isArray(d[k].result) ? d[k].result : [d[k].result];
         results.forEach(r => {
@@ -409,7 +451,7 @@ function drawYearlyChart(cat){
       datasets: [{
         label: '支出カテゴリ別',
         data: Object.values(cat),
-        backgroundColor: ['#4CAF50', '#FF9800', '#2196F3', '#9E9E9E']
+        backgroundColor: CHART_COLORS
       }]
     }
   }); 
@@ -457,18 +499,15 @@ function loadDay(){
   let plans = (d[k] && d[k].plan) ? (Array.isArray(d[k].plan) ? d[k].plan : [d[k].plan]) : [];
   let results = (d[k] && d[k].result) ? (Array.isArray(d[k].result) ? d[k].result : [d[k].result]) : [];
   
+  let getCatOptions = (selected) => CATEGORIES.map(c => `<option ${selected===c?'selected':''}>${c}</option>`).join('');
+
   // === 予定セクション ===
   html += `<h4>予定</h4>`;
   plans.forEach((p, idx) => {
     html += `<div style="margin-bottom:10px; padding-bottom:10px; border-bottom:1px dashed #ccc;">`;
     html += `<input type="number" id="editPlanAmount_${idx}" value="${p.amount || ''}" placeholder="金額">`;
     html += `<input type="text" id="editPlanPurpose_${idx}" value="${p.purpose || ''}" placeholder="用途">`;
-    html += `<select id="editPlanCategory_${idx}">
-      <option ${p.category==='園芸'?'selected':''}>園芸</option>
-      <option ${p.category==='遊興'?'selected':''}>遊興</option>
-      <option ${p.category==='家計'?'selected':''}>家計</option>
-      <option ${p.category==='その他'?'selected':''}>その他</option>
-    </select>`;
+    html += `<select id="editPlanCategory_${idx}">${getCatOptions(p.category)}</select>`;
     html += `</div>`;
   });
 
@@ -478,9 +517,7 @@ function loadDay(){
   html += `<div style="font-size:13px; color:#2e7d32; font-weight:bold; margin-bottom:5px;">＋ 新しい予定を追加</div>`;
   html += `<input type="number" id="editPlanAmount_${nextPlanIdx}" placeholder="金額">`;
   html += `<input type="text" id="editPlanPurpose_${nextPlanIdx}" placeholder="用途">`;
-  html += `<select id="editPlanCategory_${nextPlanIdx}">
-    <option>園芸</option><option>遊興</option><option>家計</option><option>その他</option>
-  </select>`;
+  html += `<select id="editPlanCategory_${nextPlanIdx}">${getCatOptions('')}</select>`;
   html += `</div>`;
 
 
@@ -490,12 +527,7 @@ function loadDay(){
     html += `<div style="margin-bottom:10px; padding-bottom:10px; border-bottom:1px dashed #ccc;">`;
     html += `<input type="number" id="editResultAmount_${idx}" value="${r.amount || ''}" placeholder="金額">`;
     html += `<input type="text" id="editResultPurpose_${idx}" value="${r.purpose || ''}" placeholder="用途">`;
-    html += `<select id="editResultCategory_${idx}">
-      <option ${r.category==='園芸'?'selected':''}>園芸</option>
-      <option ${r.category==='遊興'?'selected':''}>遊興</option>
-      <option ${r.category==='家計'?'selected':''}>家計</option>
-      <option ${r.category==='その他'?'selected':''}>その他</option>
-    </select>`;
+    html += `<select id="editResultCategory_${idx}">${getCatOptions(r.category)}</select>`;
     html += `</div>`;
   });
 
@@ -505,9 +537,7 @@ function loadDay(){
   html += `<div style="font-size:13px; color:#1565c0; font-weight:bold; margin-bottom:5px;">＋ 新しい結果を追加</div>`;
   html += `<input type="number" id="editResultAmount_${nextResultIdx}" placeholder="金額">`;
   html += `<input type="text" id="editResultPurpose_${nextResultIdx}" placeholder="用途">`;
-  html += `<select id="editResultCategory_${nextResultIdx}">
-    <option>園芸</option><option>遊興</option><option>家計</option><option>その他</option>
-  </select>`;
+  html += `<select id="editResultCategory_${nextResultIdx}">${getCatOptions('')}</select>`;
   html += `</div>`;
 
   html += `<button onclick="saveEdit('${k}')" style="margin-top:15px; background-color:#FF9800;">上書き・追加保存</button>`;
@@ -519,7 +549,6 @@ function saveEdit(k){
   let d = getData(); 
   if(!d[k]) d[k] = {};
   
-  // 予定データの収集
   let newPlans = [];
   let i = 0;
   while(document.getElementById(`editPlanAmount_${i}`)) {
@@ -527,7 +556,6 @@ function saveEdit(k){
     let purpose = document.getElementById(`editPlanPurpose_${i}`).value;
     let category = document.getElementById(`editPlanCategory_${i}`).value;
     
-    // 金額か用途のいずれかが入力されていれば保存
     if(amount !== '' || purpose !== '') {
       newPlans.push({ amount: amount, purpose: purpose, category: category });
     }
@@ -536,7 +564,6 @@ function saveEdit(k){
   if(newPlans.length > 0) d[k].plan = newPlans;
   else delete d[k].plan;
   
-  // 結果データの収集
   let newResults = [];
   let j = 0;
   while(document.getElementById(`editResultAmount_${j}`)) {
@@ -544,7 +571,6 @@ function saveEdit(k){
     let purpose = document.getElementById(`editResultPurpose_${j}`).value;
     let category = document.getElementById(`editResultCategory_${j}`).value;
     
-    // 金額か用途のいずれかが入力されていれば保存
     if(amount !== '' || purpose !== '') {
       newResults.push({ amount: amount, purpose: purpose, category: category });
     }
@@ -553,15 +579,12 @@ function saveEdit(k){
   if(newResults.length > 0) d[k].result = newResults;
   else delete d[k].result;
 
-  // もしその日の予定も結果も空になれば、オブジェクトごと消す（任意）
   if(!d[k].plan && !d[k].result && !d[k].income) {
     delete d[k];
   }
 
   saveData(d); 
   alert('内容を保存しました'); 
-  
-  // 保存後、再読み込みして最新状態（＋次の新規枠）を表示
   loadDay();
 }
 
@@ -599,7 +622,6 @@ function exportCSV(){
     let plans = d[k].plan ? (Array.isArray(d[k].plan) ? d[k].plan : [d[k].plan]) : [];
     let results = d[k].result ? (Array.isArray(d[k].result) ? d[k].result : [d[k].result]) : [];
     
-    // 予定と結果の多い方の行数に合わせて出力
     let maxLen = Math.max(plans.length, results.length);
     if(maxLen === 0) maxLen = 1;
     
@@ -620,7 +642,6 @@ function exportCSV(){
     }
   }); 
   
-  // システム間の互換性を優先し、BOMなしのUTF-8で出力
   let csv = rows.map(r => r.join(',')).join('\n'); 
   let blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'}); 
   let a = document.createElement('a'); 

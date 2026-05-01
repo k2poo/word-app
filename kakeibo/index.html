@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>家計簿アプリ（資産管理・同期修正版）</title>
+<title>家計簿アプリ（残高修正・完全同期版）</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
@@ -15,6 +15,7 @@ body { font-family: sans-serif; background:#f5f5f5; margin:0; }
 .card { background:white; border-radius:12px; padding:15px; margin:10px 0; box-shadow:0 2px 8px rgba(0,0,0,0.1); }
 button { width:100%; padding:12px; margin:5px 0; border:none; border-radius:8px; background:#4CAF50; color:white; font-size: 16px; cursor: pointer; }
 button:hover { background:#45a049; }
+button:disabled { background:#9e9e9e; cursor:not-allowed; }
 input, select, textarea { width:100%; padding:10px; margin:5px 0; border-radius:8px; border:1px solid #ccc; box-sizing: border-box; font-size: 16px; }
 .hidden { display:none; }
 .summary-area { margin-bottom: 15px; padding: 15px; background: #e3f2fd; border-radius: 8px; text-align: left; }
@@ -25,7 +26,7 @@ input, select, textarea { width:100%; padding:10px; margin:5px 0; border-radius:
 </head>
 <body>
 <div class="container">
-<h2 id="mainTitle">家計簿アプリ</h2>
+<h2>家計簿アプリ</h2>
 
 <div id="home" class="card">
   <div class="auth-area" style="text-align:center; border-bottom:1px solid #eee; padding-bottom:15px; margin-bottom:15px;">
@@ -40,11 +41,11 @@ input, select, textarea { width:100%; padding:10px; margin:5px 0; border-radius:
 <button onclick="show('result')">本日の支出結果</button>
 <button onclick="show('income')">収入入力</button>
 <button onclick="show('assetStatus')">日付別 残高確認</button>
-<button onclick="show('assetAdjust')">残高修正（金額確定）</button>
+<button onclick="show('assetAdjust')" style="background:#FF9800;">残高修正（金額を上書き）</button>
 <button onclick="show('monthly')">月の集計</button>
 <button onclick="show('yearly')">年の集計</button>
 <button onclick="show('history')">履歴一覧</button>
-<button onclick="show('editDay')">日付編集</button>
+<button onclick="show('editDay')">日付編集（削除）</button>
 <button onclick="exportCSV()" style="background:#2196F3;">CSV出力</button>
 </div>
 
@@ -59,11 +60,11 @@ input, select, textarea { width:100%; padding:10px; margin:5px 0; border-radius:
 <!-- 残高修正 -->
 <div id="assetAdjust" class="card hidden">
   <h3>残高修正</h3>
-  <p style="font-size:12px; color:#666;">指定日の「最終残高」を確定し、新たな基準にします。</p>
+  <p style="font-size:12px; color:#666;">※指定した日の「最終残高」を確定します。この日の支出や収入より優先され、以降はこの金額を基準に増減します。</p>
   <input type="date" id="adjustDate">
   <select id="adjustAsset"></select>
-  <input type="number" id="adjustAmount" placeholder="修正後の金額">
-  <button id="adjustSaveBtn" onclick="saveAdjustment()" style="background:#FF9800;">保存する</button>
+  <input type="number" id="adjustAmount" placeholder="修正後の最終金額">
+  <button id="adjustSaveBtn" onclick="saveAdjustment()" style="background:#FF9800;">確定してサーバーに保存</button>
   <button onclick="back()" style="background:#757575;">戻る</button>
 </div>
 
@@ -102,12 +103,20 @@ input, select, textarea { width:100%; padding:10px; margin:5px 0; border-radius:
 <div id="monthly" class="card hidden"><h3>月別集計</h3><input type="month" id="monthlyMonth"><canvas id="chart"></canvas><button onclick="back()" style="background:#757575;">戻る</button></div>
 <div id="yearly" class="card hidden"><h3>年別集計</h3><input type="number" id="yearlyYear" placeholder="2026"><button onclick="back()" style="background:#757575;">戻る</button></div>
 <div id="history" class="card hidden"><h3>履歴一覧</h3><div id="historyList"></div><button onclick="back()" style="background:#757575;">戻る</button></div>
-<div id="editDay" class="card hidden"><h3>日付編集</h3><input type="date" id="editDate"><div id="editArea"></div><button onclick="back()" style="background:#757575;">戻る</button></div>
+<div id="editDay" class="card hidden"><h3>日付編集</h3><input type="date" id="editDate" onchange="loadDay()"><div id="editArea"></div><button onclick="back()" style="background:#757575;">戻る</button></div>
 </div>
 
 <script>
 const ASSETS = ['現金', '現金預金', '東邦７７７', '東邦市役所', '東邦けやき', 'Sony', 'PayPay', 'PayPayBank1', 'PayPayBank2', 'Mercari'];
 const CATEGORIES = ['食費', '日用品', '家計', '園芸', '遊興', 'ガソリン〈エネオス〉', 'クレジット〈東邦〉', 'クレジット〈PayPay〉', 'その他'];
+
+// 【重要】日本時間での正しい日付（YYYY-MM-DD）を取得する関数
+function getLocalYMD(dateObj = new Date()) {
+  const y = dateObj.getFullYear();
+  const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const d = String(dateObj.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
 
 const firebaseConfig = {
     apiKey: "AIzaSyB9Phxm6u2o8z-ea7qAJqyqj9zTd1R1gAI",
@@ -118,7 +127,7 @@ const firebaseConfig = {
     appId: "1:750885231235:web:96c9a3a2366b25bf7159b6"
 };
 
-firebase.initializeApp(firebaseConfig);
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 const provider = new firebase.auth.GoogleAuthProvider();
@@ -144,15 +153,14 @@ auth.onAuthStateChanged(async (user) => {
     document.getElementById('authStatus').innerText = `${user.displayName} さん`;
     document.getElementById('loginBtn').classList.add('hidden');
     document.getElementById('logoutBtn').classList.remove('hidden');
-    // 重要：ログイン直後に最新データを取得
     await loadDataFromFirebase();
   } else {
     currentUser = null; cachedData = {};
     document.getElementById('authStatus').innerText = "未ログイン";
     document.getElementById('loginBtn').classList.remove('hidden');
     document.getElementById('logoutBtn').classList.add('hidden');
+    updateHomeSummary();
   }
-  updateHomeSummary();
 });
 
 async function loadDataFromFirebase() {
@@ -162,42 +170,53 @@ async function loadDataFromFirebase() {
     if (doc.exists) {
       cachedData = doc.data().records || {};
     }
-  } catch (e) { console.error("Load Error:", e); }
+  } catch (e) { console.error("データ読み込みエラー:", e); }
+  updateHomeSummary();
 }
 
 async function saveData(d){ 
-  if (!currentUser) return alert("ログインが必要です");
+  if (!currentUser) throw new Error("ログインが必要です");
   cachedData = d; 
-  try {
-    // マージではなく、recordsフィールドを最新のdで完全に置き換える
-    await db.collection('kakeibo_data').doc(currentUser.uid).set({ records: d });
-    updateHomeSummary();
-  } catch (e) { alert("保存に失敗しました"); }
+  // サーバー上のデータを完全に最新状態(d)で上書きし、消滅を防ぎます
+  await db.collection('kakeibo_data').doc(currentUser.uid).set({ records: d });
+  updateHomeSummary();
 }
 
+/**
+ * 【超重要】残高計算ロジック
+ */
 function calculateBalances(targetDateStr) {
   let balances = {};
   ASSETS.forEach(a => balances[a] = 0);
   const sortedKeys = Object.keys(cachedData).sort();
+  
   for (let dateKey of sortedKeys) {
     if (dateKey > targetDateStr) break;
     let dayData = cachedData[dateKey];
-    if (dayData.adjust) {
-      Object.keys(dayData.adjust).forEach(asset => balances[asset] = Number(dayData.adjust[asset]));
-    }
+    
+    // 1. その日の収入を加算
     if (dayData.income) {
       dayData.income.forEach(inc => { if (balances[inc.asset] !== undefined) balances[inc.asset] += Number(inc.amount); });
     }
+    // 2. その日の支出を減算
     if (dayData.result) {
       let results = Array.isArray(dayData.result) ? dayData.result : [dayData.result];
       results.forEach(res => { if (balances[res.asset] !== undefined) balances[res.asset] -= Number(res.amount); });
+    }
+    // 3. 【順序修正】その日の残高修正があれば、支出入の計算を無視して「最終残高」として強制上書きする
+    if (dayData.adjust) {
+      Object.keys(dayData.adjust).forEach(asset => balances[asset] = Number(dayData.adjust[asset]));
     }
   }
   return balances;
 }
 
 function updateHomeSummary() {
-  const today = new Date().toISOString().split('T')[0];
+  if(!currentUser) {
+    document.getElementById('homeSummary').innerHTML = "ログインしてデータを取得してください";
+    return;
+  }
+  const today = getLocalYMD(); // 日本時間の今日の日付を正確に取得
   const bals = calculateBalances(today);
   const total = Object.values(bals).reduce((a, b) => a + b, 0);
   let html = `<div style="font-size:18px; font-weight:bold; color:#1565c0; border-bottom:2px solid #1565c0; padding-bottom:5px; margin-bottom:10px;">現在の総資産: ${total.toLocaleString()}円</div><div class="asset-grid">`;
@@ -217,6 +236,7 @@ function updateAssetDisplay() {
   document.getElementById('assetResult').innerHTML = html;
 }
 
+// --- 残高修正 ---
 async function saveAdjustment() {
   const date = document.getElementById('adjustDate').value;
   const asset = document.getElementById('adjustAsset').value;
@@ -224,19 +244,23 @@ async function saveAdjustment() {
   if(!date || amt === '') return alert('日付と金額を入力してください');
   
   const btn = document.getElementById('adjustSaveBtn');
-  btn.disabled = true; btn.innerText = "保存中...";
+  btn.disabled = true; btn.innerText = "サーバーに保存中...";
 
-  // 既存データを壊さないようクローンを作成
-  let d = JSON.parse(JSON.stringify(cachedData));
-  if(!d[date]) d[date] = {};
-  if(!d[date].adjust) d[date].adjust = {};
-  d[date].adjust[asset] = Number(amt);
-  
-  await saveData(d);
-  
-  btn.disabled = false; btn.innerText = "保存する";
-  alert('残高を更新しました');
-  document.getElementById('adjustAmount').value = '';
+  try {
+    let d = JSON.parse(JSON.stringify(cachedData));
+    if(!d[date]) d[date] = {};
+    if(!d[date].adjust) d[date].adjust = {};
+    d[date].adjust[asset] = Number(amt);
+    
+    await saveData(d);
+    alert(`${date} の ${asset} を ${Number(amt).toLocaleString()}円 に確定・保存しました。`);
+    document.getElementById('adjustAmount').value = '';
+    
+  } catch(error) {
+    alert("保存エラー: " + error.message);
+  } finally {
+    btn.disabled = false; btn.innerText = "確定してサーバーに保存";
+  }
 }
 
 function login() { auth.signInWithPopup(provider); }
@@ -245,31 +269,32 @@ function logout() { auth.signOut().then(() => location.reload()); }
 function show(id){ 
   document.querySelectorAll('.card').forEach(d => d.classList.add('hidden')); 
   document.getElementById(id).classList.remove('hidden'); 
+  
+  const todayStr = getLocalYMD();
   if(id === 'home') updateHomeSummary();
-  if(id === 'assetStatus') { document.getElementById('checkDate').value = new Date().toISOString().split('T')[0]; updateAssetDisplay(); }
-  if(id === 'assetAdjust') document.getElementById('adjustDate').value = new Date().toISOString().split('T')[0];
-  if(id === 'plan') setDate('planDate');
-  if(id === 'result') setDate('resultDate');
-  if(id === 'income') document.getElementById('incomeDate').value = new Date().toISOString().split('T')[0];
+  if(id === 'assetStatus') { document.getElementById('checkDate').value = todayStr; updateAssetDisplay(); }
+  if(id === 'assetAdjust') document.getElementById('adjustDate').value = todayStr;
+  if(id === 'plan') { document.getElementById('planDate').innerText = todayStr; }
+  if(id === 'result') { document.getElementById('resultDate').innerText = todayStr; }
+  if(id === 'income') document.getElementById('incomeDate').value = todayStr;
   if(id === 'history') loadHistory();
 }
-
 function back(){ show('home'); }
-function setDate(id){ document.getElementById(id).innerText = new Date().toLocaleDateString('ja-JP'); }
-function todayKey(){ return new Date().toISOString().split('T')[0]; }
 
 async function savePlan(){ 
-  let d = JSON.parse(JSON.stringify(cachedData)), k = todayKey(); 
+  let d = JSON.parse(JSON.stringify(cachedData)), k = getLocalYMD(); 
   d[k] = d[k] || {}; d[k].plan = d[k].plan || [];
   d[k].plan.push({ amount: document.getElementById('planAmount').value, purpose: document.getElementById('planPurpose').value, category: document.getElementById('planCategory').value, asset: document.getElementById('planAsset').value }); 
-  await saveData(d); alert('保存しました');
+  await saveData(d); alert('予定を保存しました');
+  document.getElementById('planAmount').value=''; document.getElementById('planPurpose').value='';
 }
 
 async function saveResult(){ 
-  let d = JSON.parse(JSON.stringify(cachedData)), k = todayKey(); 
+  let d = JSON.parse(JSON.stringify(cachedData)), k = getLocalYMD(); 
   d[k] = d[k] || {}; d[k].result = d[k].result || [];
   d[k].result.push({ amount: document.getElementById('resultAmount').value, purpose: document.getElementById('resultPurpose').value, category: document.getElementById('resultCategory').value, asset: document.getElementById('resultAsset').value, reflection: document.getElementById('reflection').value }); 
-  await saveData(d); alert('保存しました');
+  await saveData(d); alert('結果を保存しました');
+  document.getElementById('resultAmount').value=''; document.getElementById('resultPurpose').value=''; document.getElementById('reflection').value='';
 }
 
 async function saveIncome(){ 
@@ -277,7 +302,8 @@ async function saveIncome(){
   if(!k) return alert('日付を選択してください');
   d[k] = d[k] || {}; d[k].income = d[k].income || []; 
   d[k].income.push({amount: document.getElementById('incomeAmount').value, type: document.getElementById('incomeType').value, asset: document.getElementById('incomeAsset').value}); 
-  await saveData(d); alert('保存しました');
+  await saveData(d); alert('収入を保存しました');
+  document.getElementById('incomeAmount').value='';
 }
 
 function loadHistory(){
@@ -285,18 +311,33 @@ function loadHistory(){
   let keys = Object.keys(d).sort((a,b) => b.localeCompare(a));
   keys.forEach(k => {
     let day = d[k], items = [];
-    if(day.adjust) Object.keys(day.adjust).forEach(a => items.push(`<span style="color:#FF9800;">[修正] ${a}: ${day.adjust[a].toLocaleString()}円</span>`));
+    if(day.adjust) Object.keys(day.adjust).forEach(a => items.push(`<span style="color:#FF9800; font-weight:bold;">[残高確定] ${a} を ${day.adjust[a].toLocaleString()}円 に上書き</span>`));
     if(day.income) day.income.forEach(i => items.push(`[収入] ${i.amount}円 (${i.asset})`));
-    if(day.result) day.result.forEach(r => items.push(`[支出] ${r.amount}円 (${r.asset})`));
+    if(day.result) day.result.forEach(r => items.push(`[支出] ${r.amount}円 (${r.asset}) / ${r.purpose}`));
     if(items.length > 0) html += `<div class="history-item"><strong>${k}</strong><br>${items.join('<br>')}</div>`;
   });
-  document.getElementById('historyList').innerHTML = html || 'データなし';
+  document.getElementById('historyList').innerHTML = html || 'データがありません';
+}
+
+function loadDay(){
+  let d = cachedData, k = document.getElementById('editDate').value;
+  if(!k || !d[k]) return document.getElementById('editArea').innerHTML = '<p>データがありません</p>';
+  document.getElementById('editArea').innerHTML = `<p>${k} のデータを削除して再入力してください</p><button onclick="deleteDay('${k}')" style="background:red;">この日のデータを全削除する</button>`;
+}
+async function deleteDay(k){ 
+  if(confirm(`${k} のデータを完全に削除しますか？`)){ 
+    let d = JSON.parse(JSON.stringify(cachedData));
+    delete d[k]; 
+    await saveData(d); 
+    alert('削除しました'); 
+    back(); 
+  } 
 }
 
 function exportCSV(){
   let d = cachedData, rows = [['日付','種別','金額','資産項目']];
   Object.keys(d).sort().forEach(k => {
-    if(d[k].adjust) Object.keys(d[k].adjust).forEach(a => rows.push([k,'修正',d[k].adjust[a],a]));
+    if(d[k].adjust) Object.keys(d[k].adjust).forEach(a => rows.push([k,'残高確定',d[k].adjust[a],a]));
     if(d[k].income) d[k].income.forEach(i => rows.push([k,'収入',i.amount,i.asset]));
     if(d[k].result) d[k].result.forEach(r => rows.push([k,'支出',r.amount,r.asset]));
   });

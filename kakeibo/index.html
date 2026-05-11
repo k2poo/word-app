@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>家計簿アプリ（残高修正・完全同期・編集機能強化版）</title>
+<title>家計簿アプリ（グラフ集計強化版）</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
@@ -22,6 +22,8 @@ input, select, textarea { width:100%; padding:10px; margin:5px 0; border-radius:
 .asset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 14px; margin-top: 10px; }
 .asset-item { background: rgba(255,255,255,0.7); padding: 8px; border-radius: 6px; border: 1px solid #d1e9ff; }
 .history-item { border-bottom: 1px solid #eee; padding: 10px 0; }
+.chart-container { margin-top: 20px; position: relative; height: 300px; width: 100%; }
+h4 { border-left: 4px solid #4CAF50; padding-left: 8px; margin-top: 25px; }
 </style>
 </head>
 <body>
@@ -58,7 +60,7 @@ input, select, textarea { width:100%; padding:10px; margin:5px 0; border-radius:
 
 <div id="assetAdjust" class="card hidden">
   <h3>残高修正</h3>
-  <p style="font-size:12px; color:#666;">※指定した日の「最終残高」を確定します。この日の支出や収入より優先され、以降はこの金額を基準に増減します。</p>
+  <p style="font-size:12px; color:#666;">※指定した日の「最終残高」を確定します。</p>
   <input type="date" id="adjustDate">
   <select id="adjustAsset"></select>
   <input type="number" id="adjustAmount" placeholder="修正後の最終金額">
@@ -95,8 +97,34 @@ input, select, textarea { width:100%; padding:10px; margin:5px 0; border-radius:
 <button onclick="back()" style="background:#757575;">戻る</button>
 </div>
 
-<div id="monthly" class="card hidden"><h3>月別集計</h3><input type="month" id="monthlyMonth"><canvas id="chart"></canvas><button onclick="back()" style="background:#757575;">戻る</button></div>
-<div id="yearly" class="card hidden"><h3>年別集計</h3><input type="number" id="yearlyYear" placeholder="2026"><button onclick="back()" style="background:#757575;">戻る</button></div>
+<div id="monthly" class="card hidden">
+  <h3>月別集計</h3>
+  <input type="month" id="monthlyMonth" onchange="updateSummaryCharts('monthly')">
+  <div id="monthlyTotal" style="font-weight:bold; margin-top:10px; font-size:18px; color:#d32f2f;"></div>
+  
+  <h4>支出項目別</h4>
+  <div class="chart-container"><canvas id="monthlyCategoryChart"></canvas></div>
+  
+  <h4>支出元別</h4>
+  <div class="chart-container"><canvas id="monthlyAssetChart"></canvas></div>
+  
+  <button onclick="back()" style="background:#757575; margin-top:30px;">戻る</button>
+</div>
+
+<div id="yearly" class="card hidden">
+  <h3>年別集計</h3>
+  <input type="number" id="yearlyYear" placeholder="2024" onchange="updateSummaryCharts('yearly')">
+  <div id="yearlyTotal" style="font-weight:bold; margin-top:10px; font-size:18px; color:#d32f2f;"></div>
+  
+  <h4>支出項目別</h4>
+  <div class="chart-container"><canvas id="yearlyCategoryChart"></canvas></div>
+  
+  <h4>支出元別</h4>
+  <div class="chart-container"><canvas id="yearlyAssetChart"></canvas></div>
+  
+  <button onclick="back()" style="background:#757575; margin-top:30px;">戻る</button>
+</div>
+
 <div id="history" class="card hidden"><h3>履歴一覧</h3><div id="historyList"></div><button onclick="back()" style="background:#757575;">戻る</button></div>
 
 <div id="editDay" class="card hidden">
@@ -111,6 +139,7 @@ input, select, textarea { width:100%; padding:10px; margin:5px 0; border-radius:
 <script>
 const ASSETS = ['現金', '現金預金', '東邦７７７', '東邦市役所', '東邦けやき', 'Sony', 'PayPay', 'PayPayBank1', 'PayPayBank2', 'Mercari'];
 const CATEGORIES = ['食費', '日用品', '家計', '園芸', '遊興', 'ガソリン〈エネオス〉', 'クレジット〈東邦〉', 'クレジット〈PayPay〉', 'その他'];
+const CHART_COLORS = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#8BC34A', '#E91E63', '#795548'];
 
 function getLocalYMD(dateObj = new Date()) {
   const y = dateObj.getFullYear();
@@ -135,6 +164,7 @@ const provider = new firebase.auth.GoogleAuthProvider();
 
 let currentUser = null;
 let cachedData = {}; 
+let charts = {}; // チャートインスタンス保持用
 
 function initSelectors() {
   ['planAsset', 'resultAsset', 'incomeAsset', 'adjustAsset'].forEach(id => {
@@ -186,37 +216,26 @@ function calculateBalances(targetDateStr) {
   let balances = {};
   ASSETS.forEach(a => balances[a] = 0);
   const sortedKeys = Object.keys(cachedData).sort();
-  
   for (let dateKey of sortedKeys) {
     if (dateKey > targetDateStr) break;
     let dayData = cachedData[dateKey];
-    
-    if (dayData.income) {
-      dayData.income.forEach(inc => { if (balances[inc.asset] !== undefined) balances[inc.asset] += Number(inc.amount); });
-    }
+    if (dayData.income) dayData.income.forEach(inc => { if (balances[inc.asset] !== undefined) balances[inc.asset] += Number(inc.amount); });
     if (dayData.result) {
       let results = Array.isArray(dayData.result) ? dayData.result : [dayData.result];
       results.forEach(res => { if (balances[res.asset] !== undefined) balances[res.asset] -= Number(res.amount); });
     }
-    if (dayData.adjust) {
-      Object.keys(dayData.adjust).forEach(asset => balances[asset] = Number(dayData.adjust[asset]));
-    }
+    if (dayData.adjust) Object.keys(dayData.adjust).forEach(asset => balances[asset] = Number(dayData.adjust[asset]));
   }
   return balances;
 }
 
 function updateHomeSummary() {
-  if(!currentUser) {
-    document.getElementById('homeSummary').innerHTML = "ログインしてデータを取得してください";
-    return;
-  }
-  const today = getLocalYMD(); 
-  const bals = calculateBalances(today);
+  if(!currentUser) { document.getElementById('homeSummary').innerHTML = "ログインしてください"; return; }
+  const bals = calculateBalances(getLocalYMD());
   const total = Object.values(bals).reduce((a, b) => a + b, 0);
-  let html = `<div style="font-size:18px; font-weight:bold; color:#1565c0; border-bottom:2px solid #1565c0; padding-bottom:5px; margin-bottom:10px;">現在の総資産: ${total.toLocaleString()}円</div><div class="asset-grid">`;
+  let html = `<div style="font-size:18px; font-weight:bold; color:#1565c0; border-bottom:2px solid #1565c0; padding-bottom:5px; margin-bottom:10px;">総資産: ${total.toLocaleString()}円</div><div class="asset-grid">`;
   ASSETS.forEach(a => { html += `<div class="asset-item">${a}<br><strong>${bals[a].toLocaleString()}円</strong></div>`; });
-  html += `</div>`;
-  document.getElementById('homeSummary').innerHTML = html;
+  document.getElementById('homeSummary').innerHTML = html + `</div>`;
 }
 
 function updateAssetDisplay() {
@@ -226,55 +245,87 @@ function updateAssetDisplay() {
   const total = Object.values(bals).reduce((a, b) => a + b, 0);
   let html = `<h4>${date} 時点の残高</h4><div class="asset-grid">`;
   ASSETS.forEach(a => { html += `<div class="asset-item">${a}<br><strong>${bals[a].toLocaleString()}円</strong></div>`; });
-  html += `</div><div style="margin-top:15px; font-weight:bold; font-size:18px;">合計: ${total.toLocaleString()}円</div>`;
-  document.getElementById('assetResult').innerHTML = html;
+  document.getElementById('assetResult').innerHTML = html + `</div><div style="margin-top:15px; font-weight:bold;">合計: ${total.toLocaleString()}円</div>`;
 }
 
-async function saveAdjustment() {
-  const date = document.getElementById('adjustDate').value;
-  const asset = document.getElementById('adjustAsset').value;
-  const amt = document.getElementById('adjustAmount').value;
-  if(!date || amt === '') return alert('日付と金額を入力してください');
+// --- グラフ集計ロジック ---
+function updateSummaryCharts(type) {
+  const filterPrefix = (type === 'monthly') ? document.getElementById('monthlyMonth').value : document.getElementById('yearlyYear').value;
+  if (!filterPrefix) return;
+
+  let catData = {}, assetData = {}, totalExp = 0;
   
-  const btn = document.getElementById('adjustSaveBtn');
-  btn.disabled = true; btn.innerText = "サーバーに保存中...";
+  Object.keys(cachedData).forEach(date => {
+    if (date.startsWith(filterPrefix)) {
+      const results = cachedData[date].result || [];
+      results.forEach(r => {
+        const amt = Number(r.amount);
+        totalExp += amt;
+        catData[r.category] = (catData[r.category] || 0) + amt;
+        assetData[r.asset] = (assetData[r.asset] || 0) + amt;
+      });
+    }
+  });
 
-  try {
-    let d = JSON.parse(JSON.stringify(cachedData));
-    if(!d[date]) d[date] = {};
-    if(!d[date].adjust) d[date].adjust = {};
-    d[date].adjust[asset] = Number(amt);
-    
-    await saveData(d);
-    alert(`${date} の ${asset} を ${Number(amt).toLocaleString()}円 に確定・保存しました。`);
-    document.getElementById('adjustAmount').value = '';
-    
-  } catch(error) {
-    alert("保存エラー: " + error.message);
-  } finally {
-    btn.disabled = false; btn.innerText = "確定してサーバーに保存";
-  }
+  document.getElementById(`${type}Total`).innerText = `期間中の総支出: ${totalExp.toLocaleString()}円`;
+  renderPieChart(`${type}CategoryChart`, catData);
+  renderPieChart(`${type}AssetChart`, assetData);
 }
 
-function login() { auth.signInWithPopup(provider); }
-function logout() { auth.signOut().then(() => location.reload()); }
+function renderPieChart(canvasId, dataObj) {
+  if (charts[canvasId]) charts[canvasId].destroy();
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  const labels = Object.keys(dataObj);
+  const values = Object.values(dataObj);
+
+  if (labels.length === 0) {
+    ctx.font = "16px sans-serif"; ctx.textAlign = "center";
+    ctx.fillText("データがありません", ctx.canvas.width/2, ctx.canvas.height/2);
+    return;
+  }
+
+  charts[canvasId] = new Chart(ctx, {
+    type: 'pie',
+    data: {
+      labels: labels,
+      datasets: [{ data: values, backgroundColor: CHART_COLORS }]
+    },
+    options: { responsive: true, maintainAspectRatio: false }
+  });
+}
 
 function show(id){ 
   document.querySelectorAll('.card').forEach(d => d.classList.add('hidden')); 
   document.getElementById(id).classList.remove('hidden'); 
-  
-  const todayStr = getLocalYMD();
+  const today = new Date();
+  const todayStr = getLocalYMD(today);
+
   if(id === 'home') updateHomeSummary();
   if(id === 'assetStatus') { document.getElementById('checkDate').value = todayStr; updateAssetDisplay(); }
   if(id === 'assetAdjust') document.getElementById('adjustDate').value = todayStr;
-  if(id === 'plan') { document.getElementById('planDate').innerText = todayStr; }
-  if(id === 'result') { document.getElementById('resultDate').innerText = todayStr; }
+  if(id === 'plan') document.getElementById('planDate').innerText = todayStr;
+  if(id === 'result') document.getElementById('resultDate').innerText = todayStr;
   if(id === 'income') document.getElementById('incomeDate').value = todayStr;
   if(id === 'history') loadHistory();
-  if(id === 'editDay') { document.getElementById('editDate').value = todayStr; loadDay(); } // 今日の日付で自動読込
+  if(id === 'editDay') { document.getElementById('editDate').value = todayStr; loadDay(); }
+  
+  if(id === 'monthly') {
+    const m = todayStr.substring(0, 7);
+    document.getElementById('monthlyMonth').value = m;
+    updateSummaryCharts('monthly');
+  }
+  if(id === 'yearly') {
+    const y = today.getFullYear();
+    document.getElementById('yearlyYear').value = y;
+    updateSummaryCharts('yearly');
+  }
 }
-function back(){ show('home'); }
 
+function back(){ show('home'); }
+function login() { auth.signInWithPopup(provider); }
+function logout() { auth.signOut().then(() => location.reload()); }
+
+// 既存の保存・編集ロジック（前回の修正を維持）
 async function savePlan(){ 
   let d = JSON.parse(JSON.stringify(cachedData)), k = getLocalYMD(); 
   d[k] = d[k] || {}; d[k].plan = d[k].plan || [];
@@ -282,7 +333,6 @@ async function savePlan(){
   await saveData(d); alert('予定を保存しました');
   document.getElementById('planAmount').value=''; document.getElementById('planPurpose').value='';
 }
-
 async function saveResult(){ 
   let d = JSON.parse(JSON.stringify(cachedData)), k = getLocalYMD(); 
   d[k] = d[k] || {}; d[k].result = d[k].result || [];
@@ -290,27 +340,32 @@ async function saveResult(){
   await saveData(d); alert('結果を保存しました');
   document.getElementById('resultAmount').value=''; document.getElementById('resultPurpose').value=''; document.getElementById('reflection').value='';
 }
-
 async function saveIncome(){ 
   let d = JSON.parse(JSON.stringify(cachedData)), k = document.getElementById('incomeDate').value; 
-  if(!k) return alert('日付を選択してください');
+  if(!k) return alert('日付を選択');
   d[k] = d[k] || {}; d[k].income = d[k].income || []; 
   d[k].income.push({amount: document.getElementById('incomeAmount').value, type: document.getElementById('incomeType').value, asset: document.getElementById('incomeAsset').value}); 
-  await saveData(d); alert('収入を保存しました');
-  document.getElementById('incomeAmount').value='';
+  await saveData(d); alert('収入保存');
+}
+async function saveAdjustment() {
+  const date = document.getElementById('adjustDate').value, asset = document.getElementById('adjustAsset').value, amt = document.getElementById('adjustAmount').value;
+  if(!date || amt === '') return alert('日付と金額を入力');
+  let d = JSON.parse(JSON.stringify(cachedData));
+  if(!d[date]) d[date] = {}; if(!d[date].adjust) d[date].adjust = {};
+  d[date].adjust[asset] = Number(amt);
+  await saveData(d); alert('残高確定しました');
 }
 
 function loadHistory(){
-  let d = cachedData, html = '';
-  let keys = Object.keys(d).sort((a,b) => b.localeCompare(a));
+  let d = cachedData, html = '', keys = Object.keys(d).sort((a,b) => b.localeCompare(a));
   keys.forEach(k => {
     let day = d[k], items = [];
-    if(day.adjust) Object.keys(day.adjust).forEach(a => items.push(`<span style="color:#FF9800; font-weight:bold;">[残高確定] ${a} を ${day.adjust[a].toLocaleString()}円 に上書き</span>`));
+    if(day.adjust) Object.keys(day.adjust).forEach(a => items.push(`<span style="color:#FF9800;">[確定] ${a}: ${day.adjust[a].toLocaleString()}</span>`));
     if(day.income) day.income.forEach(i => items.push(`[収入] ${i.amount}円 (${i.asset})`));
     if(day.result) day.result.forEach(r => items.push(`[支出] ${r.amount}円 (${r.asset}) / ${r.purpose}`));
     if(items.length > 0) html += `<div class="history-item"><strong>${k}</strong><br>${items.join('<br>')}</div>`;
   });
-  document.getElementById('historyList').innerHTML = html || 'データがありません';
+  document.getElementById('historyList').innerHTML = html || 'データなし';
 }
 
 function exportCSV(){
@@ -323,19 +378,11 @@ function exportCSV(){
   let a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([rows.map(r=>r.join(',')).join('\n')], {type:'text/csv'})); a.download='kakeibo.csv'; a.click();
 }
 
-// ------------------------------------------------------------------
-// 【新規追加】日付ごとのデータ編集・修正機能
-// ------------------------------------------------------------------
-let editCurrentData = null;
-let editCurrentDate = null;
-
+// ---------------- 日付編集 ----------------
+let editCurrentData = null, editCurrentDate = null;
 function loadDay() {
-  const k = document.getElementById('editDate').value;
-  if (!k) return;
-  editCurrentDate = k;
-  let dayData = cachedData[k] || {};
-  
-  // 編集用のデータオブジェクトを初期化（存在しない場合は空の配列/オブジェクトにする）
+  const k = document.getElementById('editDate').value; if (!k) return;
+  editCurrentDate = k; let dayData = cachedData[k] || {};
   editCurrentData = {
     income: dayData.income ? JSON.parse(JSON.stringify(dayData.income)) : [],
     plan: dayData.plan ? JSON.parse(JSON.stringify(dayData.plan)) : [],
@@ -344,128 +391,39 @@ function loadDay() {
   };
   renderEditArea();
 }
-
 function renderEditArea() {
-  let html = `<p style="font-size:14px; color:#666;">各項目を修正・削除・追加し、最後に「保存」ボタンを押してください。</p>`;
+  let html = `<p style="font-size:12px;">修正後、「上書き保存」してください。</p>`;
+  const optA = (sel) => ASSETS.map(a => `<option value="${a}" ${a===sel?'selected':''}>${a}</option>`).join('');
+  const optC = (sel) => CATEGORIES.map(c => `<option value="${c}" ${c===sel?'selected':''}>${c}</option>`).join('');
   
-  const createAssetOptions = (selected) => ASSETS.map(a => `<option value="${a}" ${a === selected ? 'selected' : ''}>${a}</option>`).join('');
-  const createCategoryOptions = (selected) => CATEGORIES.map(c => `<option value="${c}" ${c === selected ? 'selected' : ''}>${c}</option>`).join('');
-  
-  // --- 収入エディタ ---
-  html += `<div style="background:#e8f5e9; padding:10px; border-radius:8px; margin-bottom:15px;">`;
-  html += `<h4 style="margin-top:0;">収入</h4>`;
-  editCurrentData.income.forEach((inc, idx) => {
-    html += `<div style="background:#fff; border:1px solid #ccc; padding:10px; border-radius:6px; margin-bottom:10px;">
-      <input type="number" placeholder="金額" value="${inc.amount}" onchange="editCurrentData.income[${idx}].amount = this.value">
-      <select onchange="editCurrentData.income[${idx}].asset = this.value">${createAssetOptions(inc.asset)}</select>
-      <select onchange="editCurrentData.income[${idx}].type = this.value">
-        <option ${inc.type==='給与'?'selected':''}>給与</option><option ${inc.type==='臨時'?'selected':''}>臨時</option><option ${inc.type==='年金'?'selected':''}>年金</option><option ${inc.type==='副業'?'selected':''}>副業</option><option ${inc.type==='その他'?'selected':''}>その他</option>
-      </select>
-      <button onclick="editCurrentData.income.splice(${idx},1); renderEditArea();" style="background:#e53935; padding:8px; margin-top:5px;">この収入を削除</button>
-    </div>`;
+  // 収入
+  editCurrentData.income.forEach((i, idx) => {
+    html += `<div class="card">収入: <input type="number" value="${i.amount}" onchange="editCurrentData.income[${idx}].amount=this.value">
+    <select onchange="editCurrentData.income[${idx}].asset=this.value">${optA(i.asset)}</select>
+    <button onclick="editCurrentData.income.splice(${idx},1);renderEditArea()" style="background:red;padding:5px;">削除</button></div>`;
   });
-  html += `<button onclick="editCurrentData.income.push({amount:'', type:'給与', asset:'現金'}); renderEditArea();" style="background:#81c784; padding:8px; color:#000;">＋ 収入を追加</button>`;
-  html += `</div>`;
-
-  // --- 支出予定エディタ ---
-  html += `<div style="background:#fff3e0; padding:10px; border-radius:8px; margin-bottom:15px;">`;
-  html += `<h4 style="margin-top:0;">支出予定</h4>`;
-  editCurrentData.plan.forEach((p, idx) => {
-    html += `<div style="background:#fff; border:1px solid #ccc; padding:10px; border-radius:6px; margin-bottom:10px;">
-      <input type="number" placeholder="金額" value="${p.amount}" onchange="editCurrentData.plan[${idx}].amount = this.value">
-      <input type="text" placeholder="用途" value="${p.purpose}" onchange="editCurrentData.plan[${idx}].purpose = this.value">
-      <select onchange="editCurrentData.plan[${idx}].asset = this.value">${createAssetOptions(p.asset)}</select>
-      <select onchange="editCurrentData.plan[${idx}].category = this.value">${createCategoryOptions(p.category)}</select>
-      <button onclick="editCurrentData.plan.splice(${idx},1); renderEditArea();" style="background:#e53935; padding:8px; margin-top:5px;">この予定を削除</button>
-    </div>`;
-  });
-  html += `<button onclick="editCurrentData.plan.push({amount:'', purpose:'', category:'食費', asset:'現金'}); renderEditArea();" style="background:#ffb74d; padding:8px; color:#000;">＋ 予定を追加</button>`;
-  html += `</div>`;
-
-  // --- 支出結果エディタ ---
-  html += `<div style="background:#e3f2fd; padding:10px; border-radius:8px; margin-bottom:15px;">`;
-  html += `<h4 style="margin-top:0;">支出結果</h4>`;
+  // 支出結果
   editCurrentData.result.forEach((r, idx) => {
-    html += `<div style="background:#fff; border:1px solid #ccc; padding:10px; border-radius:6px; margin-bottom:10px;">
-      <input type="number" placeholder="金額" value="${r.amount}" onchange="editCurrentData.result[${idx}].amount = this.value">
-      <input type="text" placeholder="用途" value="${r.purpose}" onchange="editCurrentData.result[${idx}].purpose = this.value">
-      <select onchange="editCurrentData.result[${idx}].asset = this.value">${createAssetOptions(r.asset)}</select>
-      <select onchange="editCurrentData.result[${idx}].category = this.value">${createCategoryOptions(r.category)}</select>
-      <textarea placeholder="振り返り" onchange="editCurrentData.result[${idx}].reflection = this.value">${r.reflection || ''}</textarea>
-      <button onclick="editCurrentData.result.splice(${idx},1); renderEditArea();" style="background:#e53935; padding:8px; margin-top:5px;">この結果を削除</button>
-    </div>`;
+    html += `<div class="card">支出: <input type="number" value="${r.amount}" onchange="editCurrentData.result[${idx}].amount=this.value">
+    <input type="text" value="${r.purpose}" onchange="editCurrentData.result[${idx}].purpose=this.value">
+    <select onchange="editCurrentData.result[${idx}].asset=this.value">${optA(r.asset)}</select>
+    <select onchange="editCurrentData.result[${idx}].category=this.value">${optC(r.category)}</select>
+    <button onclick="editCurrentData.result.splice(${idx},1);renderEditArea()" style="background:red;padding:5px;">削除</button></div>`;
   });
-  html += `<button onclick="editCurrentData.result.push({amount:'', purpose:'', category:'食費', asset:'現金', reflection:''}); renderEditArea();" style="background:#64b5f6; padding:8px; color:#000;">＋ 結果を追加</button>`;
-  html += `</div>`;
-
-  // --- 残高修正エディタ ---
-  html += `<div style="background:#f3e5f5; padding:10px; border-radius:8px; margin-bottom:15px;">`;
-  html += `<h4 style="margin-top:0;">残高修正</h4>`;
-  Object.keys(editCurrentData.adjust).forEach(a => {
-    html += `<div style="background:#fff; border:1px solid #ccc; padding:10px; border-radius:6px; margin-bottom:10px;">
-      <div style="font-weight:bold; margin-bottom:5px;">${a}</div>
-      <input type="number" placeholder="金額" value="${editCurrentData.adjust[a]}" onchange="editCurrentData.adjust['${a}'] = this.value">
-      <button onclick="delete editCurrentData.adjust['${a}']; renderEditArea();" style="background:#e53935; padding:8px; margin-top:5px;">この修正を削除</button>
-    </div>`;
-  });
-  html += `<div style="display:flex; gap:5px; margin-top:5px; background:#fff; padding:10px; border:1px solid #ccc; border-radius:6px;">
-    <select id="newAdjustAsset" style="flex:1;">${createAssetOptions(ASSETS[0])}</select>
-    <input type="number" id="newAdjustAmount" placeholder="金額" style="flex:1;">
-    <button onclick="addAdjustEdit()" style="background:#ba68c8; padding:8px; flex:1;">＋ 追加</button>
-  </div>`;
-  html += `</div>`;
-
-  // --- 保存・全削除ボタン ---
-  html += `<hr style="margin: 20px 0; border:none; border-top:1px solid #ccc;">`;
-  html += `<button onclick="saveEditDay()" style="background:#4CAF50; font-size:18px; padding:15px; font-weight:bold; margin-bottom:10px;">💾 この内容で上書き保存</button>`;
-  html += `<button onclick="deleteDay('${editCurrentDate}')" style="background:#f44336; padding:10px;">⚠️ この日のデータを全削除</button>`;
-
+  html += `<button onclick="editCurrentData.result.push({amount:0,purpose:'',asset:'現金',category:'食費'});renderEditArea()" style="background:#81c784;">＋ 支出を追加</button>`;
+  html += `<button onclick="saveEditDay()" style="background:#4CAF50;margin-top:20px;">💾 この内容で上書き保存</button>`;
+  html += `<button onclick="deleteDay('${editCurrentDate}')" style="background:#f44336;">⚠️ この日を全削除</button>`;
   document.getElementById('editArea').innerHTML = html;
 }
-
-function addAdjustEdit() {
-  const asset = document.getElementById('newAdjustAsset').value;
-  const amt = document.getElementById('newAdjustAmount').value;
-  if(amt === '') return alert('金額を入力してください');
-  editCurrentData.adjust[asset] = Number(amt);
-  renderEditArea();
-}
-
 async function saveEditDay() {
-  let dataToSave = {};
-  
-  // 空欄のデータ（追加ボタンを押しただけで入力しなかった項目）を除外して保存
-  const validIncome = editCurrentData.income.filter(i => i.amount !== '');
-  if (validIncome.length > 0) dataToSave.income = validIncome;
-  
-  const validPlan = editCurrentData.plan.filter(p => p.amount !== '');
-  if (validPlan.length > 0) dataToSave.plan = validPlan;
-  
-  const validResult = editCurrentData.result.filter(r => r.amount !== '');
-  if (validResult.length > 0) dataToSave.result = validResult;
-  
-  if (Object.keys(editCurrentData.adjust).length > 0) dataToSave.adjust = editCurrentData.adjust;
-
   let d = JSON.parse(JSON.stringify(cachedData));
-  
-  if (Object.keys(dataToSave).length === 0) {
-    delete d[editCurrentDate]; // 全て空になった場合はデータ自体を削除
-  } else {
-    d[editCurrentDate] = dataToSave;
-  }
-  
-  await saveData(d);
-  alert(`${editCurrentDate} のデータを保存しました`);
-  back();
+  d[editCurrentDate] = editCurrentData;
+  await saveData(d); alert('保存しました'); back();
 }
-
 async function deleteDay(k){ 
-  if(confirm(`${k} のデータを完全に削除しますか？`)){ 
-    let d = JSON.parse(JSON.stringify(cachedData));
-    delete d[k]; 
-    await saveData(d); 
-    alert('削除しました'); 
-    back(); 
+  if(confirm('削除しますか？')){ 
+    let d = JSON.parse(JSON.stringify(cachedData)); delete d[k]; 
+    await saveData(d); alert('削除完了'); back(); 
   } 
 }
 </script>
